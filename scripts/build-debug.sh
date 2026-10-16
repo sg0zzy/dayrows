@@ -56,6 +56,19 @@ try:
     with apk.open('rb') as src, target.open('xb') as dst:
         shutil.copyfileobj(src, dst)
     metadata['outputs'] = [{'filename': target.name, 'sha256': hashlib.sha256(target.read_bytes()).hexdigest()}]
+    # Store listing artwork travels alongside the APK rather than inside the app.
+    store_artwork = archive / 'store-artwork'
+    store_artwork.mkdir()
+    for name in ('dayrows-play-icon-512.png', 'dayrows-feature-1024x500.png'):
+        source = root / 'icons' / name
+        with source.open('rb') as src, (store_artwork / name).open('xb') as dst:
+            shutil.copyfileobj(src, dst)
+        metadata['outputs'].append({'filename': f'store-artwork/{name}',
+                                    'sha256': hashlib.sha256((store_artwork / name).read_bytes()).hexdigest()})
+    metadata['launcher_inputs'] = [
+        {'filename': f'icons/{name}', 'sha256': hashlib.sha256((root / 'icons' / name).read_bytes()).hexdigest()}
+        for name in ('dayrows-adaptive-foreground-432.png', 'dayrows-play-icon-512.png')
+    ]
     metadata['status'] = 'success'
 except Exception as error:
     metadata['status'] = 'failed'

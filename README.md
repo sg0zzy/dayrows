@@ -5,7 +5,10 @@
 DayRows is a native Android calendar viewer. Each calendar occupies a row, each
 date occupies a column, and events appear as compact chronological text. Choose
 1, 2 or 7 days; move between periods or return to today. Calendar labels stay
-visible while the day columns scroll horizontally.
+visible while the day columns scroll horizontally. In landscape, the title, view
+modes, date navigation, Today and Settings share one compact toolbar to leave
+more space for the matrix. At very large font sizes or in narrow landscape
+windows, the toolbar scrolls horizontally to keep its controls readable.
 
 DayRows is a **view**. It never creates, edits or deletes calendars or events.
 It reads Android’s Calendar Provider, including Google calendars and other
@@ -108,7 +111,9 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 - `app/src/test/`: local unit tests; `app/src/debug/`: fake repository.
 - `scripts/build-debug.sh`: debug build and archive helper.
 - `icons/`: source artwork. `main_concept.png` is retained as supplied; the
-  temporary launcher vector can be replaced with final Android launcher assets.
+  launcher assets are generated from the adaptive foreground and Play icon by
+  Gradle for both script and direct builds. The script also archives the Play icon
+  and feature graphic in `store-artwork/` alongside the APK, with checksums.
 
 ## Limitations
 
@@ -128,7 +133,6 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
   current profile’s provider; no cross-profile integration is added.
 - This is an early milestone: physical-device and vendor-specific calendar
   provider testing remains necessary. No editing, search, widgets or notifications.
-- Final launcher artwork is pending.
 
 ## Versioning and license
 

@@ -4,6 +4,38 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+// Copy the supplied artwork unchanged; Gradle tracks both files as build inputs.
+abstract class PrepareLauncherIcons : DefaultTask() {
+    @get:InputFile
+    abstract val adaptiveForeground: RegularFileProperty
+    @get:InputFile
+    abstract val playIcon: RegularFileProperty
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun prepare() {
+        val destination = outputDirectory.get().asFile
+        destination.deleteRecursively()
+        val foreground = destination.resolve("mipmap-xxxhdpi/ic_launcher_foreground.png")
+        val legacy = destination.resolve("mipmap-nodpi/ic_launcher.png")
+        foreground.parentFile.mkdirs()
+        legacy.parentFile.mkdirs()
+        adaptiveForeground.get().asFile.copyTo(foreground)
+        playIcon.get().asFile.copyTo(legacy)
+    }
+}
+val prepareLauncherIcons = tasks.register<PrepareLauncherIcons>("prepareLauncherIcons") {
+    adaptiveForeground.set(rootProject.layout.projectDirectory.file("icons/dayrows-adaptive-foreground-432.png"))
+    playIcon.set(rootProject.layout.projectDirectory.file("icons/dayrows-play-icon-512.png"))
+    outputDirectory.set(layout.buildDirectory.dir("generated/launcherIcons/res"))
+}
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.sources.res?.addGeneratedSourceDirectory(prepareLauncherIcons) { it.outputDirectory }
+    }
+}
+
 val appVersion = rootProject.file("VERSION").readText().trim()
 require(Regex("[0-9]+\\.[0-9]+\\.[0-9]+").matches(appVersion)) { "VERSION must be a stable X.Y.Z core for milestone builds" }
 val versionParts = appVersion.split('.').map(String::toLong)
