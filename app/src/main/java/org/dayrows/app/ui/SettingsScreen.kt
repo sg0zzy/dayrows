@@ -27,6 +27,7 @@ import org.dayrows.app.viewmodel.CalendarUiState
 @Composable
 fun SettingsScreen(state: CalendarUiState, onBack: () -> Unit, onSelect: (String, Boolean) -> Unit,
                    onLabel: (String, String) -> Unit, onMove: (String, String) -> Unit, onRetry: () -> Unit) {
+    var legalDocument by rememberSaveable { mutableStateOf<String?>(null) }
     val calendars = state.preferences.ordered(state.calendars)
     val listState = rememberLazyListState()
     val currentMove by rememberUpdatedState(onMove)
@@ -86,7 +87,18 @@ fun SettingsScreen(state: CalendarUiState, onBack: () -> Unit, onSelect: (String
                     }
                     HorizontalDivider()
                 }
+                item(key = "legal_documents") {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(stringResource(R.string.legal_notice), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick = { legalDocument = "PRIVACY.md" }) { Text(stringResource(R.string.privacy_policy)) }
+                        TextButton(onClick = { legalDocument = "TERMS.md" }) { Text(stringResource(R.string.terms_of_use)) }
+                        TextButton(onClick = { legalDocument = "LICENSE" }) { Text(stringResource(R.string.gpl_license)) }
+                    }
+                }
             }
         }
     }
+    legalDocument?.let { file -> LegalDocumentDialog(file, onDismiss = { legalDocument = null }) }
+
 }

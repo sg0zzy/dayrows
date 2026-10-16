@@ -33,4 +33,11 @@
     <string name="permission_settings_explanation">If the permission prompt no longer appears, enable Calendar access in system app settings.</string>
     <string name="system_settings">Open system app settings</string>
     <string name="no_calendar_handler">No calendar app is available to open this event.</string>
+    <string name="privacy_policy">Privacy policy</string>
+    <string name="terms_of_use">Terms of use</string>
+    <string name="gpl_license">GNU GPLv3 license</string>
+    <string name="close">Close</string>
+    <string name="legal_loading">Loading document…</string>
+    <string name="legal_load_error">This document could not be opened. Please close and try again.</string>
+    <string name="legal_notice">© 2026 DayRows contributors. Free software under GPL-3.0-or-later. No warranty, to the extent permitted by law.</string>
 </resources>

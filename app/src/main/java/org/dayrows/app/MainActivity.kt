@@ -15,6 +15,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -106,15 +108,19 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun PermissionScreen(permanentlyDenied: Boolean, onRequest: () -> Unit, onSystemSettings: () -> Unit) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.Center,
+    var showPrivacy by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.tagline), Modifier.padding(top = 8.dp, bottom = 24.dp), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.permission_explanation))
         Button(onClick = onRequest, modifier = Modifier.padding(top = 16.dp)) { Text(stringResource(R.string.allow_calendar)) }
+        TextButton(onClick = { showPrivacy = true }) { Text(stringResource(R.string.privacy_policy)) }
         if (permanentlyDenied) {
             Text(stringResource(R.string.permission_settings_explanation), Modifier.padding(top = 12.dp))
             TextButton(onClick = onSystemSettings) { Text(stringResource(R.string.system_settings)) }
         }
     }
+    if (showPrivacy) LegalDocumentDialog("PRIVACY.md", onDismiss = { showPrivacy = false })
+
 }

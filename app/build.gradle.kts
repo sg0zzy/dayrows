@@ -30,9 +30,30 @@ val prepareLauncherIcons = tasks.register<PrepareLauncherIcons>("prepareLauncher
     playIcon.set(rootProject.layout.projectDirectory.file("icons/dayrows-play-icon-512.png"))
     outputDirectory.set(layout.buildDirectory.dir("generated/launcherIcons/res"))
 }
+// Package the canonical legal files so Settings can show them without a network connection.
+abstract class PrepareLegalDocuments : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val documents: ConfigurableFileCollection
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun prepare() {
+        val root = outputDirectory.get().asFile
+        root.deleteRecursively()
+        val legal = root.resolve("legal").also { it.mkdirs() }
+        documents.files.forEach { it.copyTo(legal.resolve(it.name)) }
+    }
+}
+val prepareLegalDocuments = tasks.register<PrepareLegalDocuments>("prepareLegalDocuments") {
+    documents.from(rootProject.files("PRIVACY.md", "TERMS.md", "LICENSE"))
+    outputDirectory.set(layout.buildDirectory.dir("generated/legalAssets"))
+}
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.sources.res?.addGeneratedSourceDirectory(prepareLauncherIcons) { it.outputDirectory }
+        variant.sources.assets?.addGeneratedSourceDirectory(prepareLegalDocuments) { it.outputDirectory }
     }
 }
 

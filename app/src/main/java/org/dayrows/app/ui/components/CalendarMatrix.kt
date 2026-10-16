@@ -12,8 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import org.dayrows.app.R
 import org.dayrows.app.data.EventInstance
@@ -25,19 +28,28 @@ import java.time.format.DateTimeFormatter
 fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance) -> Unit, modifier: Modifier = Modifier) {
     val scroll = rememberScrollState()
     val locale = LocalConfiguration.current.locales[0]
-    val dateFormat = remember(locale) { DateTimeFormatter.ofPattern("EEE\nd MMM", locale) }
+    val dateFormat = remember(locale) { DateTimeFormatter.ofPattern("EEE d MMM", locale) }
+    val headerStyle = MaterialTheme.typography.labelLarge
+    val textMeasurer = rememberTextMeasurer()
+    val minimumHeaderWidth = with(LocalDensity.current) {
+        matrix.dates.maxOf { date ->
+            textMeasurer.measure(dateFormat.format(date), style = headerStyle, maxLines = 1).size.width
+        }.toDp()
+    } + 16.dp
     BoxWithConstraints(modifier) {
         val nameWidth = (maxWidth * .28f).coerceIn(88.dp, 140.dp)
-        val dayWidth = if (matrix.dates.size == 7) 164.dp else ((maxWidth - nameWidth) / matrix.dates.size).coerceAtLeast(110.dp)
+        val dayWidth = (if (matrix.dates.size == 7) 164.dp else (maxWidth - nameWidth) / matrix.dates.size)
+            .coerceAtLeast(maxOf(110.dp, minimumHeaderWidth))
         Column {
             Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)) {
-                Box(Modifier.width(nameWidth).heightIn(min = 60.dp).padding(10.dp), contentAlignment = Alignment.CenterStart) {
-                    Text(stringResource(R.string.calendar), style = MaterialTheme.typography.labelLarge)
+                Box(Modifier.width(nameWidth).heightIn(min = 36.dp).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(stringResource(R.string.calendar), style = headerStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Row(Modifier.horizontalScroll(scroll)) {
                     matrix.dates.forEach { date ->
-                        Box(Modifier.width(dayWidth).heightIn(min = 60.dp).padding(8.dp)) {
-                            Text(dateFormat.format(date), style = MaterialTheme.typography.labelLarge,
+                        Box(Modifier.width(dayWidth).heightIn(min = 36.dp).padding(horizontal = 8.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.CenterStart) {
+                            Text(dateFormat.format(date), style = headerStyle, maxLines = 1,
                                 color = if (date == LocalDate.now(zone)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                         }
                     }

@@ -2,6 +2,13 @@
 
 **Your calendars, one simple view.**
 
+Native Android · Android 8.0+ (API 26) · Application ID: `org.dayrows.app` ·
+GPL-3.0-or-later
+
+[Privacy policy / Informativa sulla privacy](PRIVACY.md) ·
+[Terms of use / Condizioni d’uso](TERMS.md) · [GNU GPLv3](LICENSE) ·
+[Source project](https://github.com/sg0zzy/dayrows)
+
 DayRows is a native Android calendar viewer. Each calendar occupies a row, each
 date occupies a column, and events appear as compact chronological text. Choose
 1, 2 or 7 days; move between periods or return to today. Calendar labels stay
@@ -9,6 +16,7 @@ visible while the day columns scroll horizontally. In landscape, the title, view
 modes, date navigation, Today and Settings share one compact toolbar to leave
 more space for the matrix. At very large font sizes or in narrow landscape
 windows, the toolbar scrolls horizontally to keep its controls readable.
+Day headers use a single compact line, such as “Fri 16 Oct” or “ven 16 ott”.
 
 DayRows is a **view**. It never creates, edits or deletes calendars or events.
 It reads Android’s Calendar Provider, including Google calendars and other
@@ -25,6 +33,14 @@ Settings opens automatically. Select calendars, optionally assign local labels,
 and arrange rows with the arrows or by holding and dragging the ≡ handle.
 Changes save automatically in DataStore. Tap Done to return to the matrix.
 None of these preferences change the source calendar.
+
+English is the fallback language; Italian translations are included. Android
+selects the device language unless you set a per-app language override (Android
+13+). Calendar names and event titles retain their source text.
+
+Privacy, terms, and the full GPLv3 are available offline at the end of Settings.
+The permission explanation also provides the privacy policy before you grant
+calendar access. English and Italian privacy/terms are included in the same files.
 
 Tap an event to open its occurrence in an installed calendar app. Continued
 entries use ↤ / ↦; `24:00` marks an exclusive midnight end. All-day events use
@@ -91,8 +107,8 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 ## Validation in this workspace
 
 - `./gradlew testDebugUnitTest`: 28 tests passed, no failures or skipped tests.
-- `./gradlew lintDebug`: passed with 0 errors and 9 warnings (dependency updates
-  and the locale configuration attribute used only on Android 13+).
+- `./gradlew lintDebug`: passed with 0 errors. Existing warnings concern dependency
+  updates, newer-platform attributes, and launcher icon recommendations.
 - `./scripts/build-debug.sh --console=plain`: debug APK built and archived.
 - Isolated Android 36 emulator: installed/launched; permission and initial
   Settings flow; real provider discovery; selection, local label and arrow
@@ -134,6 +150,60 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 - This is an early milestone: physical-device and vendor-specific calendar
   provider testing remains necessary. No editing, search, widgets or notifications.
 
+## Publication documents and release preparation
+
+| Document | Purpose |
+| --- | --- |
+| [PRIVACY.md](PRIVACY.md) | English/Italian privacy policy covering calendar access, stored account identities, retention/deletion, permission choices, and event-opening requests. |
+| [TERMS.md](TERMS.md) | English/Italian usage information, provider limitations, and warranty terms that preserve GPL rights and mandatory consumer rights. |
+| [LICENSE](LICENSE) | Full, unmodified GNU GPL version 3 text. The project grants version 3 or any later version. |
+
+Gradle packages the canonical privacy, terms, and license files into every build;
+Settings opens these local copies in scrollable dialogs. There is no third app
+screen, consent gate, or network dependency for reading the documents.
+
+The repository currently identifies the privacy/support contact as the DayRows
+project issue tracker: https://github.com/sg0zzy/dayrows/issues. It must be public
+and usable when the app is distributed, or the policy must name another active
+contact mechanism. Never post private calendars or account addresses in public
+issues. No personal contact email is added to these documents.
+
+Before submitting a release:
+
+1. Publish the privacy policy at a stable, publicly accessible HTTPS URL, reachable
+   without sign-in or geographic restrictions. A rendered web page is suitable;
+   do not use a private repository link or PDF. Publish these documents and make
+   the stated contact mechanism available before entering that URL in Play Console.
+2. Verify that the publisher/store listing identifies DayRows consistently with
+   the policy. Complete Play Console's Data safety form for the actual shipped
+   binary and its dependencies. The current app processes calendar data only on
+   the device; it has no developer-operated data collection or telemetry. Opening
+   an event is an explicit user-initiated transfer to another calendar app, as
+   disclosed in the privacy policy. On-device access is still sensitive access
+   even where it is outside Play's definition of off-device collection.
+3. Make the corresponding source, build instructions, GPL license, and required
+   notices available for the exact distributed version. Preserve third-party
+   licenses/notices and verify rights to all distributed artwork. The project
+   GPL does not relicense third-party components or the GNU license document.
+4. Prepare a signed **release** Android App Bundle using your own protected upload
+   key and Play App Signing as appropriate. Release signing is not configured in
+   this milestone; debug APKs are for hands-on testing. After setting up signing
+   outside tracked files, `./gradlew bundleRelease` produces
+   `app/build/outputs/bundle/release/app-release.aab`. Never commit signing keys,
+   passwords, or generated packages.
+5. Check current target API and store requirements, complete the content rating,
+   target audience, ads (none), app access (no account required), and permission
+   declarations, and test the signed build on physical devices. Recheck version
+   code allocation against any already distributed release before submission.
+
+Preparing these files does not publish the app or establish store approval.
+Public hosting, store configuration, source distribution, and release signing
+remain publisher actions; no release tag, upload, or publication is automatic.
+
+References: [Google Play User Data policy](https://support.google.com/googleplay/android-developer/answer/10144311),
+[Data safety definitions](https://support.google.com/googleplay/android-developer/answer/10787469),
+and [GNU licensing guidance](https://www.gnu.org/licenses/gpl-howto.html).
+
 ## Versioning and license
 
 `VERSION` is the canonical version. Android `versionName` is derived from it;
@@ -153,4 +223,9 @@ for traceable, non-overwriting archives. A dirty source digest covers non-ignore
 repository files, not the external SDK, Gradle cache or signing key. There is no
 release/publishing workflow in this milestone.
 
-Licensed under **GPL-3.0-or-later**. See [LICENSE](LICENSE).
+Copyright © 2026 DayRows contributors. DayRows is free software: you may
+redistribute and modify it under the GNU General Public License, version 3 or,
+at your option, any later version. It is distributed without warranty, including
+implied warranties of merchantability or fitness, to the extent permitted by law.
+See [LICENSE](LICENSE) for the full terms. Third-party components retain their
+respective licenses; contributors retain their copyrights.
