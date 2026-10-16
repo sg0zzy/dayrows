@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package org.dayrows.app.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import org.dayrows.app.R
+import org.dayrows.app.data.EventInstance
+import org.dayrows.app.ui.components.CalendarMatrix
+import org.dayrows.app.viewmodel.*
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int) -> Unit,
+                   onNavigate: (Int) -> Unit, onToday: () -> Unit, onRetry: () -> Unit, onEvent: (EventInstance) -> Unit) {
+    val matrix = state.matrix
+    val locale = LocalConfiguration.current.locales[0]
+    val format = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+    Scaffold(topBar = {
+        TopAppBar(title = { Text(stringResource(R.string.app_name)) }, actions = {
+            IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
+        })
+    }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                listOf(1, 2, 7).forEachIndexed { index, days ->
+                    SegmentedButton(selected = state.preferences.dayCount == days, onClick = { onDays(days) },
+                        shape = SegmentedButtonDefaults.itemShape(index, 3)) {
+                        Text(stringResource(when (days) { 1 -> R.string.one_day; 2 -> R.string.two_days; else -> R.string.seven_days }))
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onNavigate(-1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.previous_period)) }
+                Text(if (matrix.dates.size == 1) format.format(state.start) else "${format.format(state.start)} – ${format.format(matrix.dates.last())}",
+                    Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = onToday) { Text(stringResource(R.string.today)) }
+                IconButton(onClick = { onNavigate(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_period)) }
+            }
+            if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (state.error != null) ErrorMessage(state.error, onRetry)
+            when {
+                matrix.rows.isNotEmpty() -> CalendarMatrix(matrix, state.zone, onEvent, Modifier.weight(1f))
+                !state.loading && state.discovered -> Column(Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(stringResource(R.string.no_selected_calendars), style = MaterialTheme.typography.bodyLarge)
+                    TextButton(onClick = onSettings) { Text(stringResource(R.string.open_settings)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ErrorMessage(error: LoadError, onRetry: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Text(stringResource(if (error == LoadError.PREFERENCES) R.string.preferences_error else R.string.provider_error),
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+    }
+}

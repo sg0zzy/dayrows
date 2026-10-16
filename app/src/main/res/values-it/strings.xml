@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">DayRows</string>
+    <string name="tagline">I tuoi calendari, in una vista semplice.</string>
+    <string name="calendar">Calendario</string>
+    <string name="settings">Impostazioni</string>
+    <string name="open_settings">Apri impostazioni</string>
+    <string name="one_day">1 giorno</string>
+    <string name="two_days">2 giorni</string>
+    <string name="seven_days">7 giorni</string>
+    <string name="previous_period">Periodo precedente</string>
+    <string name="next_period">Periodo successivo</string>
+    <string name="today">Oggi</string>
+    <string name="all_day">Tutto il giorno</string>
+    <string name="untitled_event">Evento senza titolo</string>
+    <string name="unnamed_calendar">Calendario senza nome</string>
+    <string name="no_selected_calendars">Scegli i calendari nelle impostazioni per visualizzarli qui.</string>
+    <string name="provider_error">Impossibile caricare i calendari. Controlla il permesso di accesso e riprova.</string>
+    <string name="preferences_error">Impossibile salvare o caricare le preferenze. Controlla lo spazio sul dispositivo e riprova.</string>
+    <string name="retry">Riprova</string>
+    <string name="back">Indietro</string>
+    <string name="done">Fine</string>
+    <string name="settings_intro">Scegli i calendari, aggiungi etichette locali e ordina le righe. Tieni premuta una maniglia per trascinare o usa le frecce. Le modifiche si salvano automaticamente e riguardano solo DayRows.</string>
+    <string name="no_available_calendars">Nessun calendario leggibile disponibile. Aggiungi o sincronizza un calendario nelle impostazioni del dispositivo, poi torna qui.</string>
+    <string name="source_id">ID calendario: %1$s</string>
+    <string name="not_syncing">Sincronizzazione disattivata · gli eventi potrebbero non essere aggiornati</string>
+    <string name="identity_unavailable">Identità sorgente non univoca · preferenze valide solo per questa sessione</string>
+    <string name="local_label">Etichetta locale (facoltativa)</string>
+    <string name="move_up">Sposta il calendario in alto</string>
+    <string name="move_down">Sposta il calendario in basso</string>
+    <string name="drag_reorder">Tieni premuto e trascina per riordinare il calendario</string>
+    <string name="permission_explanation">DayRows richiede il permesso di lettura dei calendari già presenti sul dispositivo. Visualizza gli eventi senza modificarli. Non servono account o connessione a Internet.</string>
+    <string name="allow_calendar">Consenti accesso ai calendari</string>
+    <string name="permission_settings_explanation">Se la richiesta del permesso non compare più, abilita l’accesso al calendario nelle impostazioni di sistema dell’app.</string>
+    <string name="system_settings">Apri impostazioni di sistema</string>
+    <string name="no_calendar_handler">Nessuna app calendario disponibile per aprire questo evento.</string>
+</resources>

@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">DayRows</string>
+    <string name="tagline">Your calendars, one simple view.</string>
+    <string name="calendar">Calendar</string>
+    <string name="settings">Settings</string>
+    <string name="open_settings">Open Settings</string>
+    <string name="one_day">1 day</string>
+    <string name="two_days">2 days</string>
+    <string name="seven_days">7 days</string>
+    <string name="previous_period">Previous period</string>
+    <string name="next_period">Next period</string>
+    <string name="today">Today</string>
+    <string name="all_day">All day</string>
+    <string name="untitled_event">Untitled event</string>
+    <string name="unnamed_calendar">Unnamed calendar</string>
+    <string name="no_selected_calendars">Choose calendars in Settings to see them here.</string>
+    <string name="provider_error">Calendar data could not be loaded. Check calendar access and try again.</string>
+    <string name="preferences_error">Your preferences could not be saved or loaded. Check device storage and try again.</string>
+    <string name="retry">Retry</string>
+    <string name="back">Back</string>
+    <string name="done">Done</string>
+    <string name="settings_intro">Choose calendars, add local labels, and arrange your rows. Hold a handle to drag, or use the arrows. Changes save automatically and only affect DayRows.</string>
+    <string name="no_available_calendars">No readable calendars are available. Add or synchronize a calendar in your device settings, then return here.</string>
+    <string name="source_id">Calendar ID: %1$s</string>
+    <string name="not_syncing">Not synchronizing · events may be out of date</string>
+    <string name="identity_unavailable">No unique source identity · preferences apply for this session only</string>
+    <string name="local_label">Local label (optional)</string>
+    <string name="move_up">Move calendar up</string>
+    <string name="move_down">Move calendar down</string>
+    <string name="drag_reorder">Hold and drag to reorder calendar</string>
+    <string name="permission_explanation">DayRows needs read access to the calendars already on this device. It displays your events and never changes them. No account or internet connection is required.</string>
+    <string name="allow_calendar">Allow calendar access</string>
+    <string name="permission_settings_explanation">If the permission prompt no longer appears, enable Calendar access in system app settings.</string>
+    <string name="system_settings">Open system app settings</string>
+    <string name="no_calendar_handler">No calendar app is available to open this event.</string>
+</resources>
