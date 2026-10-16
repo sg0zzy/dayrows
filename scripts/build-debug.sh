@@ -10,7 +10,7 @@ if [[ -z "${ANDROID_HOME:-}" && -z "${ANDROID_SDK_ROOT:-}" && ! -f local.propert
     exit 1
 fi
 python3 - "$@" <<'PY'
-import datetime, hashlib, json, pathlib, shutil, subprocess, sys, uuid
+import datetime, hashlib, json, os, pathlib, shutil, subprocess, sys, uuid
 
 root = pathlib.Path.cwd()
 version = (root / 'VERSION').read_text().strip()
@@ -40,11 +40,18 @@ metadata = {
     'product': 'DayRows', 'version': version, 'build_id': build_id,
     'utc_time': build_time.isoformat(), 'commit_sha': commit,
     'dirty': bool(status) or commit is None, 'source_sha256': before,
-    'distribution': 'local-debug', 'official_release': False,
+    'distribution': 'ci-debug' if os.getenv('GITHUB_ACTIONS') == 'true' else 'local-debug',
+    'official_release': False,
     'platform': 'Android', 'architecture': 'universal (Kotlin/JVM)',
     'toolchain': {'gradle': '8.14.3', 'agp': '8.13.0', 'kotlin': '2.2.20',
                   'compile_sdk': 36, 'java': subprocess.run(['java', '-version'], capture_output=True, text=True).stderr.strip()},
 }
+if os.getenv('GITHUB_ACTIONS') == 'true':
+    metadata['ci'] = {
+        'provider': 'github-actions', 'repository': os.getenv('GITHUB_REPOSITORY'),
+        'run_id': os.getenv('GITHUB_RUN_ID'), 'run_attempt': os.getenv('GITHUB_RUN_ATTEMPT'),
+        'ref': os.getenv('GITHUB_REF'),
+    }
 manifest = archive / 'build-manifest.json'
 try:
     subprocess.run(['./gradlew', 'assembleDebug', *sys.argv[1:]], check=True)

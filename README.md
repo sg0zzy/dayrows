@@ -78,6 +78,27 @@ Git SHA (null until the initial commit), dirty flag, toolchain and APK checksum.
 The script requires Python 3 and Git in addition to the Android build tools.
 It never tags, commits, signs a release, uploads or publishes anything.
 
+## Manual GitHub Actions build
+
+The [Build debug APK workflow](.github/workflows/build-apk.yml) runs only when
+manually requested. Once the workflow is on the repository's default branch,
+open **Actions → Build debug APK → Run workflow**, choose the branch to build,
+and start the run.
+
+It installs SDK 36/build-tools 36.0.0, uses Java 21 and the Gradle wrapper, and runs
+the existing build script with unit tests and lint. After a successful run,
+download `dayrows-debug-<run-id>-<attempt>` from the run's **Artifacts** section.
+The ZIP contains the versioned debug APK, build manifest (source SHA, checksums,
+unique build ID and CI run information), and store artwork. A separate reports
+artifact contains the unit-test and lint results. Artifacts are retained for
+14 days, subject to repository limits.
+
+The workflow needs no signing secrets, has read-only repository permissions,
+and does not create a release, tag, version bump, or store upload. Each hosted
+run uses its own debug signing key; installing over a differently signed local
+or CI build may require uninstalling that build first, which removes its local
+preferences. Stable test/release signing is not configured.
+
 ## Install and hands-on test
 
 Enable USB debugging and connect an Android device (or start an emulator):
@@ -126,6 +147,7 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 - `app/src/main/res/values*/`: English fallback and Italian resources.
 - `app/src/test/`: local unit tests; `app/src/debug/`: fake repository.
 - `scripts/build-debug.sh`: debug build and archive helper.
+- `.github/workflows/build-apk.yml`: manual debug APK build and artifact upload.
 - `icons/`: source artwork. `main_concept.png` is retained as supplied; the
   launcher assets are generated from the adaptive foreground and Play icon by
   Gradle for both script and direct builds. The script also archives the Play icon
