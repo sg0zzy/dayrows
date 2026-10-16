@@ -1,4 +1,4 @@
-# DayRows 0.1.0
+# DayRows
 
 **Your calendars, one simple view.**
 
@@ -47,57 +47,29 @@ entries use ↤ / ↦; `24:00` marks an exclusive midnight end. All-day events u
 the provider’s UTC date semantics. Recurrences come from `CalendarContract.Instances`.
 The device’s current zone determines timed events’ day boundaries, including DST.
 
-## Build and test
+## Development and builds
 
-Requirements: JDK 17 or newer (validated with 21), Android SDK platform 36,
-build-tools 36.0.0, and internet access for the first Gradle/dependency download.
-Gradle 8.14.3 is included through the wrapper. AGP 8.13.0, Kotlin 2.2.20 and the
-stable Compose 2025.09.01 BOM are pinned for the installed SDK 36 toolchain.
-Minimum Android version: 8.0 / API 26. Target SDK: 36.
-
-Set your SDK path, for example:
+[DEVELOPMENT_STANDARDS.md](DEVELOPMENT_STANDARDS.md) records the pinned central
+policy and partial adoption status. [Development operations](docs/DEVELOPMENT.md)
+contains toolchain prerequisites, build/signing matrices, source metadata,
+retention/protection commands, CI behavior and release readiness.
 
 ```bash
 export ANDROID_HOME="$HOME/Android/Sdk"
-# Alternatively, create an untracked local.properties with sdk.dir=/absolute/sdk/path
-./gradlew testDebugUnitTest
-./gradlew assembleDebug
+./scripts/build-debug.sh testDebugUnitTest lintDebug --no-daemon --console=plain
+python3 -m unittest discover -s scripts/tests -v
 ```
 
-The debug build helper works from any directory and forwards additional Gradle
-arguments. It builds the APK and archives a uniquely named copy and JSON manifest:
+Managed debug APKs, verified manifests and store artwork are archived under
+`local_artifacts/<unique-build-id>/`. The default retains the newest 10 successful
+unprotected builds. Use `python3 scripts/artifacts.py protect <build-id>` to keep
+one. Existing `dist/local/` archives are preserved outside automatic cleanup.
 
-```bash
-./scripts/build-debug.sh
-./scripts/build-debug.sh --offline  # after dependencies have been downloaded
-```
-
-The standard APK is `app/build/outputs/apk/debug/app-debug.apk`. Archived local
-builds are under `dist/local/<version>/<build-id>/`, with source content digest,
-Git SHA (null until the initial commit), dirty flag, toolchain and APK checksum.
-The script requires Python 3 and Git in addition to the Android build tools.
-It never tags, commits, signs a release, uploads or publishes anything.
-
-## Manual GitHub Actions build
-
-The [Build debug APK workflow](.github/workflows/build-apk.yml) runs only when
-manually requested. Once the workflow is on the repository's default branch,
-open **Actions → Build debug APK → Run workflow**, choose the branch to build,
-and start the run.
-
-It installs SDK 36/build-tools 36.0.0, uses Java 21 and the Gradle wrapper, and runs
-the existing build script with unit tests and lint. After a successful run,
-download `dayrows-debug-<run-id>-<attempt>` from the run's **Artifacts** section.
-The ZIP contains the versioned debug APK, build manifest (source SHA, checksums,
-unique build ID and CI run information), and store artwork. A separate reports
-artifact contains the unit-test and lint results. Artifacts are retained for
-14 days, subject to repository limits.
-
-The workflow needs no signing secrets, has read-only repository permissions,
-and does not create a release, tag, version bump, or store upload. Each hosted
-run uses its own debug signing key; installing over a differently signed local
-or CI build may require uninstalling that build first, which removes its local
-preferences. Stable test/release signing is not configured.
+The [Build debug APK workflow](.github/workflows/build-apk.yml) runs on main pushes,
+PRs to main and manual dispatch. It runs infrastructure tests, Android unit tests
+and lint, then uploads verified test-only packages and reports as temporary Actions
+artifacts for 14 days. Production signing and official beta/stable publication are
+not configured; see the [migration report](docs/STANDARDS_MIGRATION.md) for gaps.
 
 ## Install and hands-on test
 
@@ -125,12 +97,13 @@ days), month/year boundaries, empty calendars, title/label fallback, identity an
 reused IDs. A debug-only `FakeCalendarRepository` is available for tests/previews;
 `MainActivity` always constructs the real provider repository.
 
-## Validation in this workspace
+## Earlier application validation
 
 - `./gradlew testDebugUnitTest`: 28 tests passed, no failures or skipped tests.
 - `./gradlew lintDebug`: passed with 0 errors. Existing warnings concern dependency
   updates, newer-platform attributes, and launcher icon recommendations.
-- `./scripts/build-debug.sh --console=plain`: debug APK built and archived.
+- The previous build helper produced a debug APK and archive; current infrastructure
+  validation is recorded in [the migration report](docs/STANDARDS_MIGRATION.md).
 - Isolated Android 36 emulator: installed/launched; permission and initial
   Settings flow; real provider discovery; selection, local label and arrow
   reorder; 1/2/7-day matrix; date navigation; recurring, overnight and multi-day
@@ -147,7 +120,7 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 - `app/src/main/res/values*/`: English fallback and Italian resources.
 - `app/src/test/`: local unit tests; `app/src/debug/`: fake repository.
 - `scripts/build-debug.sh`: debug build and archive helper.
-- `.github/workflows/build-apk.yml`: manual debug APK build and artifact upload.
+- `.github/workflows/build-apk.yml`: automatic/manual debug APK checks and artifact upload.
 - `icons/`: source artwork. `main_concept.png` is retained as supplied; the
   launcher assets are generated from the adaptive foreground and Play icon by
   Gradle for both script and direct builds. The script also archives the Play icon
@@ -228,22 +201,10 @@ and [GNU licensing guidance](https://www.gnu.org/licenses/gpl-howto.html).
 
 ## Versioning and license
 
-`VERSION` is the canonical version. Android `versionName` is derived from it;
-`versionCode = major * 1,000,000 + minor * 1,000 + patch - 999`, with minor/patch
-bounded to 0…999 and the result restricted to 1…2,100,000,000. Thus 0.1.0 starts
-at code 1 and later stable cores increase. Unsupported prerelease versions fail
-closed; define a coordinated prerelease allocation before distributing betas.
-Before 1.0, a minor version may change the settings format; patch versions aim to
-preserve saved preferences. No stable release has been published yet.
-
-Local exceptions to `VERSIONING.md` for this requested milestone: debug APKs keep
-the exact requested `0.1.0` display version and code 1, so repeated local builds
-are distinguished by the archive build ID, not by an auto-incremented dev version.
-They are not official stable releases. Direct Gradle commands use the standard
-replaceable Android output path and do not archive each invocation; use the script
-for traceable, non-overwriting archives. A dirty source digest covers non-ignored
-repository files, not the external SDK, Gradle cache or signing key. There is no
-release/publishing workflow in this milestone.
+`VERSION` is authoritative; Android fields and existing test-build compatibility
+are documented in [VERSIONING.md](VERSIONING.md). Central policy, recommendation
+departures and unresolved release/data-recovery requirements are recorded in
+[DEVELOPMENT_STANDARDS.md](DEVELOPMENT_STANDARDS.md).
 
 Copyright © 2026 DayRows contributors. DayRows is free software: you may
 redistribute and modify it under the GNU General Public License, version 3 or,

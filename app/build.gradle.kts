@@ -58,7 +58,7 @@ androidComponents {
 }
 
 val appVersion = rootProject.file("VERSION").readText().trim()
-require(Regex("[0-9]+\\.[0-9]+\\.[0-9]+").matches(appVersion)) { "VERSION must be a stable X.Y.Z core for milestone builds" }
+require(Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)").matches(appVersion)) { "VERSION must be a canonical X.Y.Z core; see VERSIONING.md" }
 val versionParts = appVersion.split('.').map(String::toLong)
 require(versionParts[0] <= 2100 && versionParts[1] <= 999 && versionParts[2] <= 999)
 // Baseline 0.1.0 = 1. Each core reserves 1,000 patch values; no pre-release distribution yet.
