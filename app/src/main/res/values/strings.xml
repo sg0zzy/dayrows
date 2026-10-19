@@ -21,6 +21,14 @@
     <string name="done">Done</string>
     <string name="settings_intro">Choose calendars, add local labels, and arrange your rows. Hold a handle to drag, or use the arrows. Changes save automatically and only affect DayRows.</string>
     <string name="no_available_calendars">No readable calendars are available. Add or synchronize a calendar in your device settings, then return here.</string>
+    <string name="refresh_calendars">Refresh calendars</string>
+    <string name="searching_calendars">Searching for calendars…</string>
+    <string name="no_new_calendars">No new calendars were found.</string>
+    <plurals name="new_calendars_found">
+        <item quantity="one">%1$d new calendar was added to the list.</item>
+        <item quantity="other">%1$d new calendars were added to the list.</item>
+    </plurals>
+    <string name="calendar_sync_hint">DayRows lists the calendars that your account apps have registered on this device. If a calendar is missing, make it available in the app that manages it and synchronize that account in your device settings, then refresh.</string>
     <string name="source_id">Calendar ID: %1$s</string>
     <string name="not_syncing">Not synchronizing · events may be out of date</string>
     <string name="identity_unavailable">No unique source identity · preferences apply for this session only</string>

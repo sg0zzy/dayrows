@@ -9,6 +9,7 @@ import android.os.Looper
 import android.provider.CalendarContract
 import android.provider.CalendarContract.Calendars as C
 import android.provider.CalendarContract.Instances as I
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -37,9 +38,15 @@ class AndroidCalendarRepository(private val resolver: ContentResolver) : Calenda
     override suspend fun calendars(): List<DeviceCalendar> = withContext(Dispatchers.IO) {
         val projection = arrayOf(C._ID, C.CALENDAR_DISPLAY_NAME, C.ACCOUNT_NAME, C.ACCOUNT_TYPE,
             C.CALENDAR_COLOR, C.CALENDAR_ACCESS_LEVEL, C.OWNER_ACCOUNT, C.VISIBLE, C.SYNC_EVENTS, C.NAME, C._SYNC_ID)
+        // Discover every accessible calendar, including secondary and shared ones already registered in the
+        // provider by their account app. VISIBLE=0 and SYNC_EVENTS=0 rows stay included: DayRows selection is a
+        // local preference and those flags only describe remote state. Provider-deleted rows are dropped; a null
+        // access level stays included, free/busy-only calendars without event access stay excluded.
+        val selection = "(${C.DELETED} IS NULL OR ${C.DELETED} <> ?)" +
+            " AND (${C.CALENDAR_ACCESS_LEVEL} IS NULL OR ${C.CALENDAR_ACCESS_LEVEL} >= ?)"
         val result = mutableListOf<DeviceCalendar>()
-        val cursor = resolver.query(C.CONTENT_URI, projection, "${C.CALENDAR_ACCESS_LEVEL} >= ?",
-            arrayOf(C.CAL_ACCESS_READ.toString()), "${C._ID} ASC") ?: error("Calendar query returned no cursor")
+        val cursor = resolver.query(C.CONTENT_URI, projection, selection,
+            arrayOf("1", C.CAL_ACCESS_READ.toString()), "${C._ID} ASC") ?: error("Calendar query returned no cursor")
         cursor.use {
             fun value(column: String): String? = it.getColumnIndex(column).takeIf { index -> index >= 0 && !it.isNull(index) }?.let(it::getString)
             while (it.moveToNext()) {
@@ -55,6 +62,7 @@ class AndroidCalendarRepository(private val resolver: ContentResolver) : Calenda
                     value(C.SYNC_EVENTS) == "1", identity != null)
             }
         }
+        logDiscovery(result)
         identities.resolve(result)
     }
 
@@ -82,5 +90,18 @@ class AndroidCalendarRepository(private val resolver: ContentResolver) : Calenda
             }
         }
         result
+    }
+}
+
+private const val DISCOVERY_TAG = "DayRowsCalendars"
+
+/** Debug-only discovery diagnostics, enabled with `adb shell setprop log.tag.DayRowsCalendars DEBUG`.
+ * Never logs account names, owner accounts or provider sync IDs. */
+private fun logDiscovery(calendars: List<DeviceCalendar>) {
+    if (!Log.isLoggable(DISCOVERY_TAG, Log.DEBUG)) return
+    Log.d(DISCOVERY_TAG, "calendar discovery: ${calendars.size} provider calendars")
+    calendars.forEach {
+        Log.d(DISCOVERY_TAG, "id=${it.id} name=${it.displayName} accountType=${it.accountType} " +
+            "accessLevel=${it.accessLevel} visible=${it.visible} syncEvents=${it.syncEvents}")
     }
 }

@@ -129,7 +129,10 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 ## Limitations
 
 - Data freshness depends on the device’s calendar synchronization. Settings
-  marks calendars whose synchronization is disabled.
+  re-reads the calendars registered on the device when *Refresh calendars* is
+  tapped or the screen is opened, and marks calendars whose synchronization is
+  disabled. A calendar the account has not yet synchronized is not registered
+  and appears only after that app has synchronized it.
 - Calendar identities use account name/type, owner and remote sync ID, falling
   back to the provider’s internal calendar name. Display labels and numeric IDs
   are not sufficient identities. Preferences survive disappearance/reappearance

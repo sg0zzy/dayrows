@@ -113,6 +113,16 @@ class CalendarMatrixBuilderTest {
         assertEquals("Ani", missing.discover(listOf(returned)).label(returned))
         assertTrue(missing.preference(returned).selected)
     }
+    @Test fun discoveredCalendarsAppendUncheckedAfterSavedOnes() {
+        val saved = calendar(1); val fresh = calendar(2, name = "Shared"); val also = calendar(3, name = "Secondary")
+        val prefs = UserPreferences(listOf(CalendarPreference(saved.key, true, "Ani"))).discover(listOf(fresh, saved, also))
+        assertEquals(listOf(saved.key, fresh.key, also.key), prefs.calendars.map { it.key })
+        assertTrue(prefs.calendars.first().selected)
+        assertFalse(prefs.calendars[1].selected); assertFalse(prefs.calendars[2].selected)
+        assertEquals("Ani", prefs.label(saved))
+        assertEquals(listOf(1L, 2L, 3L), prefs.ordered(listOf(also, fresh, saved)).map { it.id })
+        assertEquals(prefs, prefs.discover(listOf(fresh, saved, also)))
+    }
     @Test fun identityIgnoresLocalIdButSeparatesAccountAndSource() {
         val first = calendarIdentity("a", "type", "owner", "name", "remote-1")
         assertEquals(first, calendarIdentity("a", "type", "owner", "renamed", "remote-1"))

@@ -88,7 +88,8 @@ class MainActivity : ComponentActivity() {
                             }, onSystemSettings = {
                                 startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
                             })
-                        inSettings -> SettingsScreen(state, { closeSettings() }, model::select, model::label, model::move, model::refresh)
+                        inSettings -> SettingsScreen(state, { closeSettings() }, model::select, model::label, model::move,
+                            model::refresh, model::discoverCalendars)
                         else -> CalendarScreen(state, { inSettings = true }, model::days, model::navigate, model::today, model::refresh, ::openEvent)
                     }
                 }

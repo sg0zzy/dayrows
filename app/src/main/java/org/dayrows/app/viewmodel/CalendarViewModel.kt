@@ -20,6 +20,8 @@ data class CalendarUiState(
     val loading: Boolean = false,
     val discovered: Boolean = false,
     val error: LoadError? = null,
+    val searching: Boolean = false,
+    val newCalendars: Int? = null,
 ) {
     val matrix: CalendarMatrix get() = CalendarMatrixBuilder().build(calendars, events,
         visibleDates(start, preferences.dayCount), preferences, zone)
@@ -33,11 +35,13 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
     private val start = MutableStateFlow(LocalDate.now())
     private val refreshes = MutableStateFlow(0L)
     private val settings = preferences.preferences.stateIn(viewModelScope, SharingStarted.Eagerly, UserPreferences())
+    private var discovery: Job? = null
+    private var baseline: Set<String>? = null
 
     init {
         viewModelScope.launch {
-            preferences.preferences.catch { _state.update { it.copy(error = LoadError.PREFERENCES) } }.collect { prefs ->
-                _state.update { it.copy(preferences = prefs, preferencesReady = true) }
+            preferences.preferences.catch { _state.update { it.copy(error = LoadError.PREFERENCES) } }.collect { stored ->
+                _state.update { it.copy(preferences = stored, preferencesReady = true) }
             }
         }
         viewModelScope.launch {
@@ -71,6 +75,26 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
     }
     fun permission(granted: Boolean) { permission.value = granted }
     fun refresh() { refreshes.update { it + 1 } }
+
+    /** Re-queries the calendar provider and merges every newly accessible calendar into the stored preferences.
+     * Selections, labels and the manual order survive; new calendars arrive unchecked. Only an explicit
+     * [announce], never the automatic search on entry, reports a count back to the interface. */
+    fun discoverCalendars(announce: Boolean = true) {
+        if (discovery?.isActive == true) return
+        discovery = viewModelScope.launch {
+            _state.update { it.copy(searching = true, newCalendars = null) }
+            try {
+                val previous = baseline ?: state.value.preferences.calendars.map { it.key }.toSet()
+                val discovered = repository.calendars()
+                baseline = discovered.map { it.key }.toSet()
+                preferences.discover(discovered)
+                refresh()
+                if (announce) _state.update { it.copy(newCalendars = discovered.count { calendar -> calendar.key !in previous }) }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { _state.update { it.copy(error = LoadError.CALENDARS) } }
+            finally { _state.update { it.copy(searching = false) } }
+        }
+    }
     fun navigate(direction: Int) { start.update { it.plusDays((direction * state.value.preferences.dayCount).toLong()) } }
     fun today() { start.value = LocalDate.now(); refresh() }
     fun days(count: Int) = save { preferences.update { it.copy(dayCount = count) } }

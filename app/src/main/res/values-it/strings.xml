@@ -21,6 +21,14 @@
     <string name="done">Fine</string>
     <string name="settings_intro">Scegli i calendari, aggiungi etichette locali e ordina le righe. Tieni premuta una maniglia per trascinare o usa le frecce. Le modifiche si salvano automaticamente e riguardano solo DayRows.</string>
     <string name="no_available_calendars">Nessun calendario leggibile disponibile. Aggiungi o sincronizza un calendario nelle impostazioni del dispositivo, poi torna qui.</string>
+    <string name="refresh_calendars">Aggiorna calendari</string>
+    <string name="searching_calendars">Ricerca di calendari…</string>
+    <string name="no_new_calendars">Nessun nuovo calendario trovato.</string>
+    <plurals name="new_calendars_found">
+        <item quantity="one">Elenco aggiornato con %1$d nuovo calendario.</item>
+        <item quantity="other">Elenco aggiornato con %1$d nuovi calendari.</item>
+    </plurals>
+    <string name="calendar_sync_hint">DayRows elenca i calendari che le app dei tuoi account hanno registrato sul dispositivo. Se un calendario manca, rendilo disponibile nell’app che lo gestisce e sincronizza l’account nelle impostazioni del dispositivo, poi aggiorna.</string>
     <string name="source_id">ID calendario: %1$s</string>
     <string name="not_syncing">Sincronizzazione disattivata · gli eventi potrebbero non essere aggiornati</string>
     <string name="identity_unavailable">Identità sorgente non univoca · preferenze valide solo per questa sessione</string>

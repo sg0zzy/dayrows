@@ -10,12 +10,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -26,7 +28,9 @@ import org.dayrows.app.viewmodel.CalendarUiState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(state: CalendarUiState, onBack: () -> Unit, onSelect: (String, Boolean) -> Unit,
-                   onLabel: (String, String) -> Unit, onMove: (String, String) -> Unit, onRetry: () -> Unit) {
+                   onLabel: (String, String) -> Unit, onMove: (String, String) -> Unit, onRetry: () -> Unit,
+                   onDiscover: (Boolean) -> Unit) {
+    LaunchedEffect(Unit) { onDiscover(false) }
     var legalDocument by rememberSaveable { mutableStateOf<String?>(null) }
     val calendars = state.preferences.ordered(state.calendars)
     val listState = rememberLazyListState()
@@ -39,9 +43,26 @@ fun SettingsScreen(state: CalendarUiState, onBack: () -> Unit, onSelect: (String
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Text(stringResource(R.string.settings_intro), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+            FilledTonalButton(onClick = { onDiscover(true) }, enabled = !state.searching,
+                modifier = Modifier.padding(horizontal = 16.dp).padding(top = 4.dp)) {
+                if (state.searching) CircularProgressIndicator(Modifier.size(18.dp).padding(end = 8.dp),
+                    strokeWidth = 2.dp, color = LocalContentColor.current)
+                else Icon(Icons.Default.Refresh, null, Modifier.padding(end = 8.dp))
+                Text(stringResource(R.string.refresh_calendars))
+            }
+            Text(stringResource(R.string.calendar_sync_hint), Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (state.searching) Text(stringResource(R.string.searching_calendars),
+                Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
+            state.newCalendars?.let { found ->
+                Text(if (found == 0) stringResource(R.string.no_new_calendars)
+                    else pluralStringResource(R.plurals.new_calendars_found, found, found),
+                    Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary)
+            }
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (state.error != null) ErrorMessage(state.error, onRetry)
-            if (calendars.isEmpty() && !state.loading) Text(stringResource(R.string.no_available_calendars), Modifier.padding(16.dp))
+            if (calendars.isEmpty() && !state.loading && !state.searching) Text(stringResource(R.string.no_available_calendars), Modifier.padding(16.dp))
             LazyColumn(state = listState, modifier = Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
                 itemsIndexed(calendars, key = { _, calendar -> calendar.key }) { index, calendar ->
                     val preference = state.preferences.preference(calendar)
