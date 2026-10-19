@@ -24,7 +24,7 @@
  ├────┼────────────┼───────────────────────┼────────────────────┼────────────────────────────┼────────────────────┼─────────────────┤ 
  │ B1 │ Blocker    │ VERSION (0.1.1) vs    │ Request states     │ cat VERSION = 0.1.1; git   │ A v0.1.0 tag would │ Publisher       │ 
  │    │            │ audit target "0.1.0"  │ target release     │ log -1; on-device dumpsys  │ not identify the   │ decides:        │ 
- │    │            │                       │ 0.1.0; official    │ package org.dayrows.app →  │ audited commit;    │ release 0.1.1   │ 
+ │    │            │                       │ 0.1.0; official    │ package it.stefanogozzi.dayrows →  │ audited commit;    │ release 0.1.1   │ 
  │    │            │                       │ repo is 0.1.1;     │ versionCode=1              │ releasing an old   │ (recommended),  │ 
  │    │            │                       │ 0.1.0 exists only  │ versionName=0.1.0          │ source = rollback  │ or explicitly   │ 
  │    │            │                       │ as a debug build   │ DEBUGGABLE                 │ regression         │ roll back       │ 
@@ -149,7 +149,7 @@
  │ (Kotlin/Compose/M3, 2 screens,          │              │ inserts…"; no writes, grep for OAuth/HTTP/analytics/services = zero     │ 
  │ read-only provider)                     │              │                                                                         │ 
  ├─────────────────────────────────────────┼──────────────┼─────────────────────────────────────────────────────────────────────────┤ 
- │ Package/version/SDK                     │ PASS         │ Merged release manifest: package org.dayrows.app versionCode=2          │ 
+ │ Package/version/SDK                     │ PASS         │ Merged release manifest: package it.stefanogozzi.dayrows versionCode=2          │ 
  │                                         │              │ versionName=0.1.1 minSdk 26 targetSdk 36                                │ 
  ├─────────────────────────────────────────┼──────────────┼─────────────────────────────────────────────────────────────────────────┤ 
  │ Play target API requirement             │ PASS         │ support.google.com/11926878 + developer.android.com target-sdk:         │ 
@@ -218,7 +218,7 @@
                                                                                                                                       
  E. Signing and Artifact Status                                                                                                       
                                                                                                                                       
- - Expected package ID: org.dayrows.app ✔ (merged manifest, output-metadata.json)                                                     
+ - Expected package ID: it.stefanogozzi.dayrows ✔ (merged manifest, output-metadata.json)                                                     
  - versionName 0.1.1 / versionCode 2 (adapter: 0.1.0→1 already used by local debug)                                                   
  - targetSdk 36, minSdk 26, compileSdk 36                                                                                             
  - APK: builds ✔, non-debuggable ✔, unsigned without env → named app-release-unsigned.apk; named app-release.apk when signed ✔        
@@ -234,7 +234,7 @@
  F. Google Play Console Manual Checklist                                                                                              
                                                                                                                                       
  1. Generate a protected upload keystore outside the repo (with an offline backup). Record its certificate SHA-256. Do not commit.    
- 2. Verify/enroll Play App Signing for org.dayrows.app. Decide between Google-provided key or own key. If you previously enrolled     
+ 2. Verify/enroll Play App Signing for it.stefanogozzi.dayrows. Decide between Google-provided key or own key. If you previously enrolled     
     with a different key, use the Play key-recovery procedure, not a new app.                                                         
  3. Inventory release history: internal / closed / open testing tracks and all past submissions (App Signing certificate, version     
     code 1? 2?) — resolves B4.                                                                                                        
@@ -351,7 +351,7 @@
  │ Architecture match (Kotlin/Compose/M3, 2    │ PASS      │ source inspection; CalendarRepository.kt:27 never writes; zero         │ 
  │ screens, provider-only, read-only)          │           │ OAuth/HTTP/analytics/service references                                │ 
  ├─────────────────────────────────────────────┼───────────┼────────────────────────────────────────────────────────────────────────┤ 
- │ Package/version/SDK                         │ PASS      │ merged release manifest: org.dayrows.app, code 2, name 0.1.1, min 26,  │ 
+ │ Package/version/SDK                         │ PASS      │ merged release manifest: it.stefanogozzi.dayrows, code 2, name 0.1.1, min 26,  │ 
  │                                             │           │ target 36                                                              │ 
  ├─────────────────────────────────────────────┼───────────┼────────────────────────────────────────────────────────────────────────┤ 
  │ Play API-36 rule (verified officially)      │ PASS      │ support.google.com/11926878 + developer.android.com target-sdk:        │ 
@@ -399,7 +399,7 @@
                                                                                                                                       
  ### E. Signing and artifact status                                                                                                   
                                                                                                                                       
- - ID org.dayrows.app; versionName 0.1.1; versionCode 2 (adapter: 0.1.0→1 used by local debug); targetSdk 36, minSdk 26.              
+ - ID it.stefanogozzi.dayrows; versionName 0.1.1; versionCode 2 (adapter: 0.1.0→1 used by local debug); targetSdk 36, minSdk 26.              
  - AAB: builds PASS, bundletool-valid PASS; unsigned at clean state (jarsigner: "jar is unsigned."). Size 8,283,092 B; SHA-256        
    076632b8f962775ac8e135709ddc7c77855e4dfad3d4c99fbdc69c22ba85adae.                                                                  
  - APK (release): builds PASS, non-debuggable PASS; unsigned → app-release-unsigned.apk (8,720,810 B, sha256 597c1545…f807a3d);       
@@ -416,7 +416,7 @@
  ### F. Manual Play Console checklist                                                                                                 
                                                                                                                                       
  1. Create a protected upload keystore outside the repo (offline backup); record its certificate SHA-256.                             
- 2. Create/enroll app org.dayrows.app in Play Console; configure Play App Signing; register upload certificate.                       
+ 2. Create/enroll app it.stefanogozzi.dayrows in Play Console; configure Play App Signing; register upload certificate.                       
  3. Inventory all past submissions/tracks (internal/closed/open) and consumed version codes → resolves B4.                            
  4. Host PRIVACY.md at a stable public HTTPS URL; confirm issue-tracker contact works.                                                
  5. Store listing: short/full descriptions matching shipped reality (read-only viewer, no account, no internet — don't promise        
