@@ -64,7 +64,19 @@ require(versionParts[0] <= 2100 && versionParts[1] <= 999 && versionParts[2] <= 
 // Baseline 0.1.0 = 1. Each core reserves 1,000 patch values; no pre-release distribution yet.
 val androidCode = versionParts[0] * 1_000_000 + versionParts[1] * 1_000 + versionParts[2] - 999
 require(androidCode in 1..2_100_000_000) { "Version is outside the Android code allocation" }
-
+// Official release signing profile: opt-in and credential-free by default. Values come from
+// the environment so no password or key path is ever a command-line argument. Absent
+// configuration leaves release packaging unsigned (a low-level packaging capability, never an
+// official package); partial configuration fails closed instead of weakening the profile.
+val releaseSigningVariables = listOf(
+    "DAYROWS_RELEASE_KEYSTORE", "DAYROWS_RELEASE_KEY_ALIAS",
+    "DAYROWS_RELEASE_STORE_PASSWORD", "DAYROWS_RELEASE_KEY_PASSWORD",
+)
+val releaseSigningValues = releaseSigningVariables.map { providers.environmentVariable(it).orNull?.takeUnless(String::isBlank) }
+require(releaseSigningValues.all { it != null } || releaseSigningValues.none { it != null }) {
+    "Official release signing is partially configured; set all of ${releaseSigningVariables.joinToString()} or none"
+}
+val officialReleaseSigning = releaseSigningValues.firstOrNull() != null
 android {
     namespace = "org.dayrows.app"
     compileSdk = 36
@@ -78,7 +90,22 @@ android {
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+    if (officialReleaseSigning) {
+        signingConfigs.create("official") {
+            storeFile = file(releaseSigningValues[0]!!)
+            keyAlias = releaseSigningValues[1]!!
+            storePassword = releaseSigningValues[2]!!
+            keyPassword = releaseSigningValues[3]!!
+        }
+    }
+    buildTypes {
+        release {
+            // Unsigned when the profile is absent; never falls back to the debug signer.
+            signingConfig = signingConfigs.findByName("official")
+        }
+    }
 }
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.09.01"))
     implementation("androidx.compose.ui:ui")
