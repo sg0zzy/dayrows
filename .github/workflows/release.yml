@@ -264,10 +264,12 @@ jobs:
           BT="${ANDROID_HOME}/build-tools/36.0.0"
           for a in apk aab; do
             case "$a" in
-              apk) FILE="dist/DayRows-$VERSION-android-universal-release.apk";;
-              aab) FILE="dist/DayRows-$VERSION-android-universal-play.aab";;
+              apk) FILE="dist/DayRows-$VERSION-android-universal-release.apk"
+                   TOOL_ARGS=(--aapt "$BT/aapt" --apksigner "$BT/apksigner" --zipalign "$BT/zipalign");;
+              aab) FILE="dist/DayRows-$VERSION-android-universal-play.aab"
+                   TOOL_ARGS=();;
             esac
-            BT="$BT" python3 scripts/verify_release.py "$a" "${SIG_ARGS[@]}" --input "$FILE"
+            python3 scripts/verify_release.py "$a" "${SIG_ARGS[@]}" "${TOOL_ARGS[@]}" --input "$FILE"
           done
           python3 scripts/verify_release.py verify-checksums \
             --directory dist --checksums dist/SHA256SUMS.txt
