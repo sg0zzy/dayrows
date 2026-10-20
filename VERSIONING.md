@@ -17,7 +17,7 @@ modifying `VERSION`; see the documented local-display recommendation departure.
 versionCode = major * 1,000,000 + minor * 1,000 + patch - 999
 0 <= major <= 2100; 0 <= minor, patch <= 999
 1 <= resulting code <= 2,100,000,000
-0.1.0 => 1; 0.1.1 => 2; 0.2.0 => 1001; 1.0.0 => 999001
+0.1.0 => 1; 0.1.1 => 2; 0.1.2 => 3; 0.2.0 => 1001; 1.0.0 => 999001
 ```
 
 This is the historical **debug/core-only** mapping, not a beta/stable allocator.
@@ -28,12 +28,12 @@ have been inventoried. Production update ordering and release automation remain
 explicit adoption gaps.
 
 Debug builds install next to production: the debug package appends `.debug` to the
-application ID and `-debug` to the display versionName (`0.1.1` → package
-`it.stefanogozzi.dayrows.debug`, versionName `0.1.1-debug`, shared versionCode 2)
+application ID and `-debug` to the display versionName (`0.1.2` → package
+`it.stefanogozzi.dayrows.debug`, versionName `0.1.2-debug`, shared versionCode 3)
 so the debug key never collides with the Play upload key. This is a display/install
 coexistence suffix only; it adds no official version identity, does not touch the
 authoritative `VERSION`, and does not create an update edge between the variants.
-The release package remains exactly `it.stefanogozzi.dayrows` / `versionName 0.1.1`.
+The release package remains exactly `it.stefanogozzi.dayrows` / `versionName 0.1.2`.
 
 Compatibility concerns are settings persistence, calendar identity and Android
 updates. Before 1.0 a minor version may change settings format; patches aim to

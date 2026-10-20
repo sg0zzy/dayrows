@@ -41,10 +41,10 @@ with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
 
 | Build type | Application ID | versionName | Label | Signature |
 | --- | --- | --- | --- | --- |
-| `debug` | `it.stefanogozzi.dayrows.debug` (`applicationIdSuffix = ".debug"`) | `0.1.1-debug` (`versionNameSuffix = "-debug"`) | DayRows Debug | Generated Android debug key — never the production upload keystore |
-| `release` | `it.stefanogozzi.dayrows` | `0.1.1` | DayRows | Official upload key via the `DAYROWS_RELEASE_*` env contract |
+| `debug` | `it.stefanogozzi.dayrows.debug` (`applicationIdSuffix = ".debug"`) | `0.1.2-debug` (`versionNameSuffix = "-debug"`) | DayRows Debug | Generated Android debug key — never the production upload keystore |
+| `release` | `it.stefanogozzi.dayrows` | `0.1.2` | DayRows | Official upload key via the `DAYROWS_RELEASE_*` env contract |
 
-versionCode stays shared (core-derived, e.g. 0.1.1 → 2); it orders updates inside a
+versionCode stays shared (core-derived, e.g. 0.1.2 → 3); it orders updates inside a
 variant only, and the two packages never uninstall or overwrite each other. DataStore
 preferences live under each package's own data directory (`/data/data/<applicationId>`),
 so the two variants keep independent local state. Calendar Provider access and
@@ -200,6 +200,9 @@ authorization for that release build. The pipeline has four jobs:
    the signer fingerprint against `vars.DAYROWS_UPLOAD_CERT_SHA256` when that
    variable is configured. Final staged bytes are
    `DayRows-<version>-android-universal-{release.apk,play.aab}` and
+   `dist/DayRows-<version>-android-universal-symbols.zip` (the native debug
+   symbols package: every `.so` shipped in the bundle plus a
+   `MANIFEST.txt` with size/SHA-256 records for each library), plus
    `dist/SHA256SUMS.txt` (generated and transport-verified). Verified staging
    uploads as a 14-day workflow artifact named
    `<tag>-release`; failed runs upload `<tag>-incomplete`.
@@ -220,8 +223,15 @@ authorization for that release build. The pipeline has four jobs:
    the tag, draft and staging evidence intact either way.
 
 The AAB asset is downloaded and uploaded to Play Console
-manually and that acceptance is a separate destination state. This workflow does
-not implement beta allocation (`-dev.N`), durable release/ledger records, or the
+manually and that acceptance is a separate destination state. The
+`symbols.zip` asset is uploaded in Play Console under the release's
+"Debug symbols" step (App bundle explorer → Downloads → Debug symbols, or the
+review release panel); it carries the R8/Proguard `mapping.txt` (Play uses it to
+retrace obfuscated Java/Kotlin stack traces in Android Vitals) plus the native
+`.so` set for crash/ANR frame attribution. If a future build disables
+minification the mapping is simply absent from the zip and native frames alone
+are attributed. The workflow does not
+implement beta allocation (`-dev.N`), durable release/ledger records, or the
 Play delivery destination; those remain explicit gaps, and the tag workflow's
 `notes-baseline` resolver covers the notes-side requirements only.
 
@@ -237,7 +247,7 @@ No official update edges (including cross-GitHub/Play) are promised yet.
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Beta | Release APK, manifest, SHA-256 checksums | Disabled pending implementation |
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Stable | Release APK + AAB, SHA-256 checksums, verified notes | Draft staged `automatic`ally after an authorized annotated `vX.Y.Z` tag push; visibility flip is `manual` ([Stable Release](../.github/workflows/release.yml)) |
 | Google Play, `it.stefanogozzi.dayrows` | Android/universal | Beta | None enabled | Disabled |
-| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB when configured | `manual`: the AAB draft asset is staged by the GitHub pipeline, the human uploads it in Play Console and records acceptance |
+| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB + native debug-symbols zip when configured | `manual`: the AAB draft asset is staged by the GitHub pipeline, the human uploads it and its symbols in Play Console and records acceptance |
 
 All other destinations default to disabled. Credentials/environment references and
 automated retry identities are intentionally unconfigured while disabled; no tool

@@ -103,6 +103,12 @@ android {
             // Unsigned when the profile is absent; never falls back to the debug signer.
             signingConfig = signingConfigs.findByName("official")
             resValue("string", "application_label", "DayRows")
+            // R8 shrinking/obfuscation for Play's size/privacy metrics; mapping.txt feeds
+            // the mapping + symbols uploads. Keep rules live in app/proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),
+                          "proguard-rules.pro")
         }
         debug {
             // Separate installable package so debug and production builds coexist on one

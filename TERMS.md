@@ -1,6 +1,6 @@
 # DayRows Terms of Use
 
-Effective date: 16 October 2026. Applies to DayRows 0.1.1 (`it.stefanogozzi.dayrows`).
+Effective date: 16 October 2026. Applies to DayRows 0.1.2 (`it.stefanogozzi.dayrows`).
 
 ## Software license comes first
 
@@ -71,7 +71,7 @@ The tracker is public. Do not include private calendar data or account details.
 
 # Condizioni d'uso di DayRows
 
-Data di efficacia: 16 ottobre 2026. Si applicano a DayRows 0.1.1 (`it.stefanogozzi.dayrows`).
+Data di efficacia: 16 ottobre 2026. Si applicano a DayRows 0.1.2 (`it.stefanogozzi.dayrows`).
 
 ## Prevale la licenza del software
 

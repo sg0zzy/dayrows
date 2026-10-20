@@ -1,6 +1,6 @@
 # DayRows Privacy Policy
 
-Effective date: 16 October 2026. Applies to DayRows 0.1.1 (`it.stefanogozzi.dayrows`).
+Effective date: 16 October 2026. Applies to DayRows 0.1.2 (`it.stefanogozzi.dayrows`).
 
 ## Who provides DayRows
 
@@ -105,7 +105,7 @@ above without including private calendar data.
 
 # Informativa sulla privacy di DayRows
 
-Data di efficacia: 16 ottobre 2026. Si applica a DayRows 0.1.1 (`it.stefanogozzi.dayrows`).
+Data di efficacia: 16 ottobre 2026. Si applica a DayRows 0.1.2 (`it.stefanogozzi.dayrows`).
 
 ## Progetto e contatti
 
