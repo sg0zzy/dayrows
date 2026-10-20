@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.data
+package it.stefanogozzi.dayrows.data
 
 import kotlinx.coroutines.flow.MutableSharedFlow
-import org.dayrows.app.domain.instanceQueryBounds
+import it.stefanogozzi.dayrows.domain.instanceQueryBounds
 import java.time.*
 
 /** Debug/test fixture only. MainActivity always constructs AndroidCalendarRepository. */

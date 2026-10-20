@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.ui.components
+package it.stefanogozzi.dayrows.ui.components
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -18,9 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
-import org.dayrows.app.R
-import org.dayrows.app.data.EventInstance
-import org.dayrows.app.domain.*
+import it.stefanogozzi.dayrows.R
+import it.stefanogozzi.dayrows.data.EventInstance
+import it.stefanogozzi.dayrows.domain.*
 import java.time.*
 import java.time.format.DateTimeFormatter
 

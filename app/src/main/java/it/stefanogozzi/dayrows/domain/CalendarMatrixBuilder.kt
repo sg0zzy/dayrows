@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.domain
+package it.stefanogozzi.dayrows.domain
 
-import org.dayrows.app.data.*
+import it.stefanogozzi.dayrows.data.*
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle

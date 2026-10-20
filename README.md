@@ -2,7 +2,7 @@
 
 **Your calendars, one simple view.**
 
-Native Android · Android 8.0+ (API 26) · Application ID: `org.dayrows.app` ·
+Native Android · Android 8.0+ (API 26) · Application ID: `it.stefanogozzi.dayrows` ·
 GPL-3.0-or-later
 
 [Privacy policy / Informativa sulla privacy](PRIVACY.md) ·
@@ -78,7 +78,7 @@ Enable USB debugging and connect an Android device (or start an emulator):
 ```bash
 adb devices
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n org.dayrows.app/.MainActivity
+adb shell am start -n it.stefanogozzi.dayrows/.MainActivity
 ./gradlew testDebugUnitTest
 ./gradlew lintDebug
 ```

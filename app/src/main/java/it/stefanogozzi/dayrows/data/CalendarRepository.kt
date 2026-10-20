@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.data
+package it.stefanogozzi.dayrows.data
 
 import android.content.ContentResolver
 import android.content.ContentUris
@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 import java.time.*
-import org.dayrows.app.domain.instanceQueryBounds
+import it.stefanogozzi.dayrows.domain.instanceQueryBounds
 
 interface CalendarRepository {
     val changes: Flow<Unit>

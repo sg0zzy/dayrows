@@ -78,10 +78,10 @@ require(releaseSigningValues.all { it != null } || releaseSigningValues.none { i
 }
 val officialReleaseSigning = releaseSigningValues.firstOrNull() != null
 android {
-    namespace = "org.dayrows.app"
+    namespace = "it.stefanogozzi.dayrows"
     compileSdk = 36
     defaultConfig {
-        applicationId = "org.dayrows.app"
+        applicationId = "it.stefanogozzi.dayrows"
         minSdk = 26
         targetSdk = 36
         versionCode = androidCode.toInt()

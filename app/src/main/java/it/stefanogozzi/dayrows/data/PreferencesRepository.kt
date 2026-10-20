@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.data
+package it.stefanogozzi.dayrows.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit

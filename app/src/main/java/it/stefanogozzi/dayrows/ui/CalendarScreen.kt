@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.ui
+package it.stefanogozzi.dayrows.ui
 
 import android.content.res.Configuration
 import androidx.compose.foundation.horizontalScroll
@@ -16,10 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import org.dayrows.app.R
-import org.dayrows.app.data.EventInstance
-import org.dayrows.app.ui.components.CalendarMatrix
-import org.dayrows.app.viewmodel.*
+import it.stefanogozzi.dayrows.R
+import it.stefanogozzi.dayrows.data.EventInstance
+import it.stefanogozzi.dayrows.ui.components.CalendarMatrix
+import it.stefanogozzi.dayrows.viewmodel.*
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 

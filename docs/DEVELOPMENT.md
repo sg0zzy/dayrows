@@ -21,7 +21,7 @@ macOS is declared but has not been exercised in this migration.
 
 Debug signing uses Android's generated debug key. `apksigner verify --print-certs`
 verifies the final archived APK; its signer SHA-256 is recorded, with no production
-identity or upgrade promise. `aapt dump badging` checks `org.dayrows.app`, canonical
+identity or upgrade promise. `aapt dump badging` checks `it.stefanogozzi.dayrows`, canonical
 versionName/code, minimum API 26 and target API 36. APK and artwork sizes/hashes are
 recorded. Release APK signing and AAB upload signing have no configured credentials
 or expected certificate inventory. Play's actual installed app-signing identity is
@@ -143,8 +143,8 @@ No official update edges (including cross-GitHub/Play) are promised yet.
 | --- | --- | --- | --- | --- |
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Beta | Release APK, manifest, SHA-256 checksums | Disabled pending implementation |
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Stable | Release APK + AAB, manifest, SHA-256 checksums | Disabled pending implementation |
-| Google Play, `org.dayrows.app` | Android/universal | Beta | None enabled | Disabled |
-| Google Play, `org.dayrows.app` | Android/universal | Stable | Verified upload-signed AAB when configured | Disabled |
+| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Beta | None enabled | Disabled |
+| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB when configured | Disabled |
 
 All other destinations default to disabled. Credentials/environment references and
 automated retry identities are intentionally unconfigured while disabled; no tool

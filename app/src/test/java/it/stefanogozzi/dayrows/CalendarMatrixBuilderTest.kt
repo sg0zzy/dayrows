@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app
+package it.stefanogozzi.dayrows
 
-import org.dayrows.app.data.*
-import org.dayrows.app.domain.*
+import it.stefanogozzi.dayrows.data.*
+import it.stefanogozzi.dayrows.domain.*
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.*

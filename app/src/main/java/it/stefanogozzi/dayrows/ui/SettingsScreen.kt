@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.ui
+package it.stefanogozzi.dayrows.ui
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
@@ -22,8 +22,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import org.dayrows.app.R
-import org.dayrows.app.viewmodel.CalendarUiState
+import it.stefanogozzi.dayrows.R
+import it.stefanogozzi.dayrows.viewmodel.CalendarUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

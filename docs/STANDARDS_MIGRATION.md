@@ -45,10 +45,13 @@ when those documents apply to a future release.
 
 ## Retained decisions and departures
 
-`VERSION` remains `0.1.0`; package ID remains `org.dayrows.app`, with debug
-versionCode 1. Local display/core-only versioning and the shared test application ID
-are documented SHOULD departures to preserve existing installs. They do not promise
-production update compatibility. Different generated debug keys can block replacement;
+`VERSION` is `0.1.1` (publisher release decision, 2026-10-19; no tag yet); local
+display/core-only versioning remains a documented SHOULD departure. Canonical
+application ID `it.stefanogozzi.dayrows` is aligned across `namespace`,
+`applicationId` and source packages, shared by debug builds; the former
+`org.dayrows.app` test install is a separate legacy app with no update edge, so
+nothing here promises production update compatibility. Different generated debug keys
+can block replacement;
 use disposable test devices without valuable preferences. Uninstalling is not proof
 of a successful update and can destroy local settings.
 

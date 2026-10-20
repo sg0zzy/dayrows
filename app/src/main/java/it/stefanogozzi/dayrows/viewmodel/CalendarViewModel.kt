@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.viewmodel
+package it.stefanogozzi.dayrows.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import org.dayrows.app.data.*
-import org.dayrows.app.domain.*
+import it.stefanogozzi.dayrows.data.*
+import it.stefanogozzi.dayrows.domain.*
 import java.time.*
 
 enum class LoadError { CALENDARS, PREFERENCES }

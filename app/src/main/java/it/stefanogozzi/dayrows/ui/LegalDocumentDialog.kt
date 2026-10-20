@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.ui
+package it.stefanogozzi.dayrows.ui
 
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
@@ -16,7 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.dayrows.app.R
+import it.stefanogozzi.dayrows.R
 import java.io.IOException
 
 private data class DocumentState(val loading: Boolean = true, val text: String? = null)

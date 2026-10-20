@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app.ui.theme
+package it.stefanogozzi.dayrows.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme

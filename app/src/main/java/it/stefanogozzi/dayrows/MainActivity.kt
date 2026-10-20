@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.dayrows.app
+package it.stefanogozzi.dayrows
 
 import android.Manifest
 import android.content.*
@@ -30,10 +30,10 @@ import androidx.core.net.toUri
 import androidx.lifecycle.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import org.dayrows.app.data.*
-import org.dayrows.app.ui.*
-import org.dayrows.app.ui.theme.DayRowsTheme
-import org.dayrows.app.viewmodel.CalendarViewModel
+import it.stefanogozzi.dayrows.data.*
+import it.stefanogozzi.dayrows.ui.*
+import it.stefanogozzi.dayrows.ui.theme.DayRowsTheme
+import it.stefanogozzi.dayrows.viewmodel.CalendarViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
