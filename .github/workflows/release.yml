@@ -182,6 +182,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags origin "refs/tags/$DAYROWS_RELEASE_TAG:refs/tags/$DAYROWS_RELEASE_TAG"
+          mkdir -p dist
           ROOT_SHA="$(git rev-list --max-parents=0 HEAD)"
           BASE="$(python3 scripts/release_verify.py notes-baseline \
             --head "$DAYROWS_RELEASE_TAG" --fallback "$ROOT_SHA")"

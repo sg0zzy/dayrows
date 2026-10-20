@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 STABLE = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\Z")
 PRERELEASE = re.compile(
@@ -268,7 +269,9 @@ def command_notes(arguments: argparse.Namespace) -> int:
     body = subprocess.run(["git", "log", "--no-merges", "--format=* %s (%h)",
                            f"{arguments.base_ref}..{arguments.head_ref}"],
                           capture_output=True, text=True, check=True).stdout
-    with open(arguments.output, "w", encoding="utf-8") as stream:
+    output = Path(arguments.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with open(output, "w", encoding="utf-8") as stream:
         if arguments.version is not None:
             stream.write(f"DayRows {arguments.version}\n\n")
         if arguments.previous_stable is not None:
