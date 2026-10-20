@@ -79,7 +79,16 @@ def release_body(repository: str, tag: str, version: str, notes_file: str,
                  checksums: dict[str, str]) -> str:
     with open(notes_file, encoding="utf-8") as stream:
         notes = stream.read().rstrip()
-    lines = [f"# DayRows {version}", "", notes, "", "## Downloads", ""]
+    heading = f"# DayRows {version}"
+    # The notes may already carry the version heading (release_verify notes/previous work);
+    # emit it exactly once.
+    if notes.lstrip().startswith(heading, 0) or notes.lstrip().startswith(f"DayRows {version}"):
+        notes = notes.lstrip()
+        if notes.startswith(f"DayRows {version}\n"):
+            notes = heading + notes.removeprefix(f"DayRows {version}")
+        lines = [notes, "", "## Downloads", ""]
+    else:
+        lines = [heading, "", notes, "", "## Downloads", ""]
     for name in sorted(checksums, key=str.lower):
         base = os.path.basename(name)
         lines.append(

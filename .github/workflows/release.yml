@@ -249,10 +249,7 @@ jobs:
       - name: Assemble final release body
         run: |
           set -euo pipefail
-          VERSION="$(cat VERSION)"
           {
-            echo "# DayRows $VERSION"
-            echo
             cat dist/RELEASE-NOTES.md
             echo
             echo '## Google Play'
