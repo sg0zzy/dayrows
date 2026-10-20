@@ -201,9 +201,10 @@ authorization for that release build. The pipeline has four jobs:
    variable is configured. Final staged bytes are
    `DayRows-<version>-android-universal-{release.apk,play.aab}`,
    `dist/DayRows-<version>-android-universal-symbols.zip` (the native debug
-   symbols package: every `.so` shipped in the bundle at `lib/<abi>/` in the zip
-   root — the layout Play's validator requires — plus a `MANIFEST.txt` with
-   size/SHA-256 records), `dist/DayRows-<version>-android-universal-mapping.txt`
+   symbols package: every `.so` shipped in the bundle, with `<ABI>/<library>.so`
+   at the zip **root** and **nothing else** — Play's validator accepts only
+   Android ABI directories; stray files like `MANIFEST.txt` or a `lib/` wrapper
+   are rejected), `dist/DayRows-<version>-android-universal-mapping.txt`
    (the R8/Proguard mapping, uploaded to Play's separate deobfuscation-file
    slot; never embedded in the symbols zip), and
    `dist/SHA256SUMS.txt` (generated and transport-verified). Verified staging
@@ -227,11 +228,13 @@ authorization for that release build. The pipeline has four jobs:
 
 The AAB asset is downloaded and uploaded to Play Console
 manually and that acceptance is a separate destination state. Two more assets
-feed Play's deobfuscation pipeline: the `symbols.zip` (native `.so` set,
-`lib/<abi>/` at the zip root) goes to the release's "Debug symbols" step, and
-the `mapping.txt` file goes to the **deobfuscation file** slot — Play rejects
-symbols archives that embed the mapping or use a different top-level directory
-("Only Android ABIs are supported"). With them uploaded, Android Vitals shows
+feed Play's deobfuscation pipeline: the `symbols.zip` (native `.so` set with
+`<ABI>/` directories at the zip root — no `lib/` wrapper, no manifest) goes to
+the release's "Debug symbols" step, and the `mapping.txt` file goes to the
+**deobfuscation file** slot — Play rejects symbols archives containing any
+extra file ("unexpected file: MANIFEST.txt") or any non-ABI directory
+("invalid directory lib"/"invalid directory symbols": only Android ABIs are
+supported). With them uploaded, Android Vitals shows
 retraced Java/Kotlin stack traces and attributed native crash/ANR frames. If a
 future build disables minification, the mapping asset simply vanishes and only
 native frames are attributed. The workflow does not

@@ -81,20 +81,19 @@ def package(aab_path: str, output: str, generated: str) -> None:
     for name, payload in entries:
         _, _, abi, library = name.split("/", 3)
         manifest_lines.append(
-            f"  lib/{abi}/{library}  {len(payload)} bytes  sha256={sha256_bytes(payload)}")
+            f"  {abi}/{library}  {len(payload)} bytes  sha256={sha256_bytes(payload)}")
 
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as package_file:
         for name, payload in entries:
             _, _, abi, library = name.split("/", 3)
-            package_file.writestr(f"lib/{abi}/{library}", payload)
-        # MANIFEST.txt sits beside lib/ for provenance only; Play ignores extra
-        # non-directory files, but every .so payload is still re-hashed below.
-        package_file.writestr("MANIFEST.txt", "\n".join(manifest_lines) + "\n")
+            # Play's validator accepts ONLY Android ABI directories at the zip root
+            # (arm64-v8a/, x86_64/, ...). No lib/ prefix, no manifest, no mapping.
+            package_file.writestr(f"{abi}/{library}", payload)
 
     # Re-open and verify every packaged library against the manifest record.
     with zipfile.ZipFile(output) as result:
-        packaged = {name for name in result.namelist() if name.endswith(".so")}
-        expected = {f"lib/{name.split('/', 2)[2]}" for name, _ in entries}
+        packaged = set(result.namelist())
+        expected = {f"{name.split('/')[2]}/{name.split('/')[3]}" for name, _ in entries}
         if packaged != expected:
             raise SystemExit(f"packaged layout mismatch: {sorted(packaged ^ expected)}")
         for name in sorted(packaged):
@@ -104,6 +103,8 @@ def package(aab_path: str, output: str, generated: str) -> None:
             digest_line = f"  {name}  {len(raw)} bytes  sha256={sha256_bytes(raw)}"
             if digest_line not in manifest_lines:
                 raise SystemExit(f"unrecorded payload in zip: {name}")
+    # Print the manifest as build provenance (kept out of the zip itself).
+    print("\n".join(manifest_lines))
     print(f"wrote {output} with {len(entries)} libraries ({', '.join(abis)})")
 
 
@@ -117,48 +118,34 @@ def check(symbols_zip: str, aab_source: str) -> None:
         raise SystemExit(f"app bundle not found: {bundle}")
 
     with zipfile.ZipFile(symbols) as zipped:
-        # Layout gate: exactly the Play format, ABI directories at the root.
+        # Layout gate: exactly the Play format — ABI directories at the zip root,
+        # nothing else (no MANIFEST, no lib/ prefix, no mapping).
         invalid_top = {name.split("/")[0] for name in zipped.namelist()
-                       if not name.startswith("lib/") and name != "MANIFEST.txt"}
+                       if name.split("/")[0] not in ABIS
+                       or "/" not in name  # stray top-level file
+                       or not name.endswith(".so")}
         if invalid_top:
             raise SystemExit(
-                "invalid symbol layout: entries under " + ", ".join(sorted(invalid_top))
-                + "; Play requires lib/<abi>/<library>.so at the zip root (Android ABIs only)")
-        manifest = zipped.read("MANIFEST.txt").decode("utf-8").splitlines()
-        listed = [name for name in zipped.namelist() if re.fullmatch(r"lib/[^/]+/[^/]+\.so", name)]
-        abi_reject = {name.split("/")[1] for name in listed} - ABIS
+                "invalid symbol layout: unexpected entries " + ", ".join(sorted(invalid_top))
+                + "; Play requires only <abi>/<library>.so at the zip root (Android ABIs only)")
+        listed = [name for name in zipped.namelist() if re.fullmatch(r"[^/]+/[^/]+\.so", name)]
+        abi_reject = {name.split("/")[0] for name in listed} - ABIS
         if abi_reject:
             raise SystemExit(f"non-Android ABI directories present: {sorted(abi_reject)}")
-        recorded: dict[str, str] = {}
-        for line in manifest:
-            match = re.fullmatch(r"  (lib/[^/]+/[^/]+\.so)\s+\d+ bytes\s+sha256=([0-9a-f]{64})", line)
-            if match:
-                recorded[match.group(1)] = match.group(2)
-        if not recorded:
-            raise SystemExit("manifest carries no sha256 records")
-        for relative, digest in recorded.items():
-            if relative not in zipped.namelist():
-                raise SystemExit(f"manifest lists a missing payload: {relative}")
-            observed = sha256_bytes(zipped.read(relative))
-            if observed != digest:
-                raise SystemExit(f"payload hash mismatch for {relative}: "
-                                 f"manifest {digest}, file {observed}")
-        unexpected = [name for name in listed if name not in recorded]
-        if unexpected:
-            raise SystemExit(f"zip contains unrecorded payloads: {unexpected}")
-
-    with zipfile.ZipFile(bundle) as source:
-        origin = {name: sha256_bytes(source.read(name))
-                  for name in source.namelist()
-                  if re.fullmatch(r"base/lib/[^/]+/[^/]+\.so", name)}
-    for relative, digest in recorded.items():
-        expected = next((sha for name, sha in origin.items() if name.endswith(relative)), None)
-        if expected is None:
-            raise SystemExit(f"symbol {relative} does not exist in the source bundle")
-        if expected != digest:
-            raise SystemExit(f"symbol {relative} differs from the source bundle bytes")
-    print(f"symbols verified: {len(recorded)} libraries match their manifest and the bundle")
-
+        # No external manifest anymore: verify contents byte-for-byte against the
+        # source bundle (provenance manifest is printed by `build` as stdout only).
+        with zipfile.ZipFile(bundle) as source:
+            origin = {name.split("/", 2)[2]: sha256_bytes(source.read(name))
+                      for name in source.namelist()
+                      if re.fullmatch(r"base/lib/[^/]+/[^/]+\.so", name)}
+        for name in listed:
+            if name not in origin:
+                raise SystemExit(f"symbol {name} does not exist in the source bundle")
+            if sha256_bytes(zipped.read(name)) != origin[name]:
+                raise SystemExit(f"symbol {name} differs from the source bundle bytes")
+        print(f"symbols verified: {len(listed)} libraries match the source bundle "
+              f"(root ABI layout)")
+        return
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])

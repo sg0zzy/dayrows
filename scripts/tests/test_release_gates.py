@@ -160,66 +160,39 @@ class StageAssetsTest(unittest.TestCase):
 
 
 class SymbolsPackageTest(unittest.TestCase):
-    """release_symbols build/check on generated fixture bundles."""
+    """release_symbols build/check on generated fixture bundles (root-ABI layout)."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.aab = self.root / "app.aab"
-        self._write_bundle(8)
-
-    def _write_bundle(self, payload_size: int) -> None:
         with zipfile.ZipFile(self.aab, "w", zipfile.ZIP_DEFLATED) as bundle:
             for abi in ("arm64-v8a", "x86_64"):
                 for library in ("libone.so", "libtwo.so"):
                     bundle.writestr(f"base/lib/{abi}/{library}",
-                                    f"elf-{abi}-{library}".ljust(payload_size, "\0"))
+                                    f"elf-{abi}-{library}".encode())
             bundle.writestr("base/manifest/AndroidManifest.xml", b"<manifest/>")
 
     def symbols_path(self, name="symbols.zip"):
         return self.root / name
 
-    def build_symbols(self):
+    def build_symbols(self, name="symbols.zip"):
         import release_symbols
-        release_symbols.package(str(self.aab), str(self.symbols_path()), "2026-10-20T00:00:00Z")
-        return self.symbols_path()
+        output = self.root / name
+        release_symbols.package(str(self.aab), str(output), "2026-10-20T00:00:00Z")
+        return output
+
+    def test_build_layout_is_root_abi_only(self):
+        symbols = self.build_symbols()
+        with zipfile.ZipFile(symbols) as zipped:
+            tops = {name.split("/")[0] for name in zipped.namelist()}
+        self.assertEqual(tops, {"arm64-v8a", "x86_64"})
 
     def test_build_then_check_passes(self):
-        self.build_symbols()
+        symbols = self.build_symbols()
         import release_symbols
-        release_symbols.check(str(self.symbols_path()), str(self.aab))
-
-    def test_check_rejects_byte_flip(self):
-        self.build_symbols()
-        tampered = self.symbols_path("tampered.zip")
-        with zipfile.ZipFile(self.symbols_path()) as source, \
-             zipfile.ZipFile(tampered, "w", zipfile.ZIP_DEFLATED) as out:
-            for name in source.namelist():
-                payload = source.read(name)
-                if name.endswith("libone.so"):
-                    flipped = bytearray(payload)
-                    flipped[0:1] = b"\xff" if flipped[0] != 0xFF else b"\xfe"
-                    payload = bytes(flipped)
-                out.writestr(name, payload)
-        import release_symbols
-        with self.assertRaises(SystemExit):
-            release_symbols.check(str(tampered), str(self.aab))
-
-    def test_check_rejects_bogus_manifest_digest(self):
-        self.build_symbols()
-        with zipfile.ZipFile(self.symbols_path()) as source:
-            records = source.read("MANIFEST.txt").decode()
-        forged = re.sub(r"sha256=[0-9a-f]{64}", "sha256=" + "0" * 64, records)
-        forged_path = self.symbols_path("forged.zip")
-        with zipfile.ZipFile(self.symbols_path()) as source, \
-             zipfile.ZipFile(forged_path, "w", zipfile.ZIP_DEFLATED) as out:
-            for name in source.namelist():
-                out.writestr(name, forged.encode() if name.endswith("MANIFEST.txt")
-                             else source.read(name))
-        import release_symbols
-        with self.assertRaises(SystemExit):
-            release_symbols.check(str(forged_path), str(self.aab))
+        release_symbols.check(str(symbols), str(self.aab))
 
     def test_build_rejects_bundle_without_libraries(self):
         stripped = self.root / "no_native.aab"
@@ -231,17 +204,25 @@ class SymbolsPackageTest(unittest.TestCase):
             if self.symbols_path("x.zip").exists():
                 self.symbols_path("x.zip").unlink()
 
-    def test_manifest_records_source_archive_digest(self):
-        symbols = self.build_symbols()
-        with zipfile.ZipFile(symbols) as zipped:
-            manifest = zipped.read("MANIFEST.txt").decode()
-            import hashlib
-            digest = hashlib.sha256(self.aab.read_bytes()).hexdigest()
-        self.assertIn(f"Archive SHA-256: {digest}", manifest)
+    def test_check_rejects_byte_flip(self):
+        self.build_symbols()
+        tampered = self.symbols_path("tampered.zip")
+        with zipfile.ZipFile(self.symbols_path()) as source,              zipfile.ZipFile(tampered, "w", zipfile.ZIP_DEFLATED) as out:
+            for name in source.namelist():
+                payload = source.read(name)
+                if name.endswith("libone.so"):
+                    flipped = bytearray(payload)
+                    flipped[0:1] = b"\xff" if flipped[0] != 0xFF else b"\xfe"
+                    payload = bytes(flipped)
+                out.writestr(name, payload)
+        import release_symbols
+        with self.assertRaises(SystemExit):
+            release_symbols.check(str(tampered), str(self.aab))
+
 
 
 class SymbolsLayoutTest(unittest.TestCase):
-    """Play layout gates: lib/<abi> at the zip root, Android ABIs only."""
+    """Play layout gates: <abi> dirs at root, Android ABIs only, no extra files."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -259,24 +240,29 @@ class SymbolsLayoutTest(unittest.TestCase):
         release_symbols.package(str(self.aab), str(output), "")
         return output
 
-    def test_built_layout_has_root_lib_directory(self):
-        with zipfile.ZipFile(self.build_symbols()) as zipped:
-            tops = {name.split("/")[0] for name in zipped.namelist()}
-        self.assertEqual(tops, {"lib", "MANIFEST.txt"})
-
-    def test_check_rejects_symbols_wrapper_directory(self):
+    def test_check_rejects_stray_top_level_file(self):
         source = self.build_symbols("ok.zip")
+        polluted = self.root / "manifested.zip"
+        with zipfile.ZipFile(source) as ok, zipfile.ZipFile(polluted, "w") as out:
+            for name in ok.namelist():
+                out.writestr(name, ok.read(name))
+            out.writestr("MANIFEST.txt", "provenance")
+        import release_symbols
+        with self.assertRaises(SystemExit):
+            release_symbols.check(str(polluted), str(self.aab))
+
+    def test_check_rejects_lib_wrapper_directory(self):
+        source = self.build_symbols("ok2.zip")
         wrapped = self.root / "wrapped.zip"
         with zipfile.ZipFile(source) as ok, zipfile.ZipFile(wrapped, "w") as out:
             for name in ok.namelist():
-                out.writestr(("symbols/" + name) if name.startswith("lib/") else name,
-                             ok.read(name))
+                out.writestr("lib/" + name, ok.read(name))
         import release_symbols
         with self.assertRaises(SystemExit):
             release_symbols.check(str(wrapped), str(self.aab))
 
     def test_check_rejects_embedded_mapping_file(self):
-        source = self.build_symbols("ok2.zip")
+        source = self.build_symbols("ok3.zip")
         polluted = self.root / "polluted.zip"
         with zipfile.ZipFile(source) as ok, zipfile.ZipFile(polluted, "w") as out:
             for name in ok.namelist():
@@ -287,7 +273,7 @@ class SymbolsLayoutTest(unittest.TestCase):
             release_symbols.check(str(polluted), str(self.aab))
 
     def test_check_rejects_non_android_abi(self):
-        source = self.build_symbols("ok3.zip")
+        source = self.build_symbols("ok4.zip")
         foreign = self.root / "foreign.zip"
         with zipfile.ZipFile(source) as ok, zipfile.ZipFile(foreign, "w") as out:
             for name in ok.namelist():
