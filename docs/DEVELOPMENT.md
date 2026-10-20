@@ -131,6 +131,62 @@ include target/SHA/run/attempt; retention is 14 days. Reports and explicitly nam
 incomplete manifests aid diagnosis. Repository permissions are read-only, checkout
 credentials are not persisted, and no production secret is used. There is no
 release, tag, stable bump, signing-service call or deployment path in ordinary CI.
+An SDK `local.properties` (`sdk.dir=${ANDROID_HOME}`) is written in both workflows;
+it is untracked and its content digest is observed for source coherence only.
+
+## Stable release workflow
+
+[Stable Release](../.github/workflows/release.yml) implements the stable column of
+the build matrix and the GitHub Releases destination (mode `automatic` after an
+authorized tag push; Play remains `disabled` with manual follow-up). It is
+triggered by pushing an annotated `vX.Y.Z` tag, which is the publisher
+authorization for that release. The pipeline has four jobs:
+
+1. `tag-guard` (read-only): validates the tag with
+   `scripts/release_verify.py tag` — canonical `vMAJOR.MINOR.PATCH`, equality
+   with the authoritative `VERSION`, peeled commit equals the workflow SHA,
+   annotated tag with subject `DayRows <version>`, the tagged commit is the tip
+   of remote `main`, and the reservation high-water check over the complete
+   remote official state (`gh api` matching tags plus published releases;
+   nonofficial tag names are ignored, unparseable official records block).
+   Requires the full history fetch of the exact tag object.
+2. `build` (read-only permissions; secrets only for signing): unit tests, lint,
+   `assembleRelease`, `bundleRelease` with the opt-in `DAYROWS_RELEASE_*` env
+   credential contract from `app/build.gradle.kts`. Secrets:
+   `PLAY_UPLOAD_KEYSTORE_B64` (base64 of the `.jks` upload keystore),
+   `PLAY_UPLOAD_KEY_ALIAS`, `PLAY_UPLOAD_STORE_PASSWORD`,
+   `PLAY_UPLOAD_KEY_PASSWORD`. Missing material produces an unsigned package that
+   the next step rejects — signing failures never fall back to the debug signer.
+   `scripts/verify_release.py apk|aab` verify decoded identity (`package`, both
+   versions, min/target SDK) and the signer fingerprint against
+   `vars.DAYROWS_UPLOAD_CERT_SHA256` when configured. Final staged bytes are
+   renamed to `DayRows-<version>-android-universal-{release.apk,play.aab}` and
+   `dist/SHA256SUMS.txt` is generated and transport-verified. Verified staging
+   uploads as a 14-day workflow artifact named
+   `<tag>-release`; failed runs upload `<tag>-incomplete`.
+3. `notes` (read-only): resolves the previous successfully published stable tag
+   as the notes baseline (`notes-baseline`; root commit fallback records the
+   initial-reachable-history baseline) and generates notes for
+   `previous-stable..tag` from first-parent Git history with a compare link
+   (RELEASE.md notes rules; beta tags are never used as the stable baseline).
+4. `release` (contents: write, the only write-scoped job): downloads both
+   artifacts, decodes them against the tag's `VERSION`, re-verifies signatures
+   and all transport checksums (independent verification of artifact bytes).
+   `scripts/release_publish.py stage` then creates/updates a **draft** release at
+   the immutable tag with the checksummed assets and the assembled notes body
+   (draft retries may replace unpublished staging assets after hash checks;
+   published assets are immutable and a retry with differing bytes fails as an
+   incident instead of replacing them), and `publish` flips the complete draft
+   public after reconciliation. Publication failure keeps the tag, the draft and
+   its staging evidence.
+
+The workflow re-reconciles release state at publication (idempotent success for
+an already published identical release; `gh release edit --draft=false` after the
+aggregate gate). The AAB asset is downloaded and uploaded to Play Console
+manually and that acceptance is a separate destination state. This workflow does
+not implement beta allocation (`-dev.N`), durable release/ledger records, or the
+Play delivery destination; those remain explicit gaps, and the tag workflow's
+`notes-baseline` resolver covers the notes-side requirements only.
 
 ## Official releases and distribution
 
@@ -142,9 +198,9 @@ No official update edges (including cross-GitHub/Play) are promised yet.
 | Destination | Platform/architecture | Channel | Artifacts | Mode |
 | --- | --- | --- | --- | --- |
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Beta | Release APK, manifest, SHA-256 checksums | Disabled pending implementation |
-| GitHub Releases, `sg0zzy/dayrows` | Android/universal | Stable | Release APK + AAB, manifest, SHA-256 checksums | Disabled pending implementation |
+| GitHub Releases, `sg0zzy/dayrows` | Android/universal | Stable | Release APK + AAB, SHA-256 checksums, verified notes | `automatic` after an authorized annotated `vX.Y.Z` tag push ([Stable Release](../.github/workflows/release.yml)) |
 | Google Play, `it.stefanogozzi.dayrows` | Android/universal | Beta | None enabled | Disabled |
-| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB when configured | Disabled |
+| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB when configured | `manual`: the AAB release asset is staged by the GitHub pipeline, the human uploads it in Play Console and records acceptance |
 
 All other destinations default to disabled. Credentials/environment references and
 automated retry identities are intentionally unconfigured while disabled; no tool

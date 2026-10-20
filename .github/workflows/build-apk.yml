@@ -38,13 +38,14 @@ jobs:
             gradle.properties
             gradle/wrapper/gradle-wrapper.properties
 
-      # GitHub's Ubuntu image provides the Android command-line tools and licenses.
+      # GitHub's Ubuntu 24.04 image provides the Android command-line tools and licenses.
       - name: Install required Android SDK packages
         run: |
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
 
-      - name: Build APK, run unit tests and lint
+      - name: Build, test and lint debug target
         env:
           DAYROWS_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           DAYROWS_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}

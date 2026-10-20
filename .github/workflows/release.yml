@@ -1,0 +1,272 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Stable release pipeline. Triggering this workflow with an annotated vX.Y.Z tag
+# is the publisher authorization required by SECURITY.md and RELEASE.md.
+# Google Play upload stays manual: the workflow stages the verified AAB, the
+# release job is the human handoff in docs/AUDIT_REPORT.md step 6.
+name: Stable Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-release
+  cancel-in-progress: false
+
+jobs:
+  tag-guard:
+    name: Validate release tag and reservation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate annotated stable tag, version and high-water mark
+        env:
+          DAYROWS_RELEASE_TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The default checkout fetches the commit without tag objects.
+          git fetch --no-tags origin "refs/tags/$DAYROWS_RELEASE_TAG:refs/tags/$DAYROWS_RELEASE_TAG"
+          python3 scripts/release_verify.py tag \
+            --tag "$DAYROWS_RELEASE_TAG" \
+            --version "$(cat VERSION)" \
+            --expect-sha "${{ github.sha }}" \
+            --branch-tip main \
+            --remote-high-water
+          [ -z "$(git status --porcelain)" ] || { echo "tagged source not clean" >&2; exit 1; }
+
+  build:
+    name: Build signed release packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: tag-guard
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Java 21 and Gradle cache
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            **/*.gradle.kts
+            gradle.properties
+            gradle/wrapper/gradle-wrapper.properties
+
+      # GitHub's Ubuntu 24.04 image provides the Android command-line tools and licenses.
+      - name: Install required Android SDK packages
+        run: |
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
+
+      - name: Resolve upload keystore
+        env:
+          PLAY_UPLOAD_KEYSTORE_B64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          # Exported only when the secret exists. Absent material leaves the Gradle
+          # all-or-none credential check unconfigured, so packaging stays unsigned
+          # and the verification gate fails the release; there is no debug-signer
+          # fallback. A keystore with secrets partially configured fails Gradle too.
+          if [ -n "$PLAY_UPLOAD_KEYSTORE_B64" ]; then
+            mkdir -p .keystore
+            printf '%s' "$PLAY_UPLOAD_KEYSTORE_B64" | base64 -d > .keystore/dayrows-upload.jks
+            echo "DAYROWS_RELEASE_KEYSTORE=$PWD/.keystore/dayrows-upload.jks" >> "${GITHUB_ENV:?}"
+          else
+            echo "PLAY_UPLOAD_KEYSTORE_B64 is not set; release packaging will stay unsigned"
+          fi
+
+      - name: Build signed APK and AAB
+        env:
+          DAYROWS_RELEASE_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          DAYROWS_RELEASE_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          DAYROWS_RELEASE_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: ./gradlew testDebugUnitTest lintDebug assembleRelease bundleRelease --no-daemon --console=plain
+
+      - name: Verify packages, identity and signer
+        env:
+          DAYROWS_EXPECTED_SIGNER: ${{ vars.DAYROWS_UPLOAD_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          VERSION="$(cat VERSION)"
+          CODE="$(python3 -c 'import sys; sys.path.insert(0, "scripts"); from build_debug import version_code; print(version_code("'"$VERSION"'"))')"
+          SIG_ARGS=(--package it.stefanogozzi.dayrows --version "$VERSION" --code "$CODE")
+          [ -n "$DAYROWS_EXPECTED_SIGNER" ] && SIG_ARGS+=(--expected-signer-sha256 "$DAYROWS_EXPECTED_SIGNER")
+          BT="${ANDROID_HOME}/build-tools/36.0.0"
+          mkdir -p dist
+          BT="$BT" python3 scripts/verify_release.py apk \
+            "${SIG_ARGS[@]}" --aapt "$BT/aapt" --apksigner "$BT/apksigner" --zipalign "$BT/zipalign" \
+            --min-sdk 26 --target-sdk 36 --input "app/build/outputs/apk/release/app-release.apk"
+          BT="$BT" python3 scripts/verify_release.py aab "${SIG_ARGS[@]}" \
+            --input "app/build/outputs/bundle/release/app-release.aab"
+          cp app/build/outputs/apk/release/app-release.apk \
+            "dist/DayRows-$VERSION-android-universal-release.apk"
+          cp app/build/outputs/bundle/release/app-release.aab \
+            "dist/DayRows-$VERSION-android-universal-play.aab"
+          python3 scripts/verify_release.py checksums --output dist/SHA256SUMS.txt \
+            dist/DayRows-$VERSION-android-universal-release.apk \
+            dist/DayRows-$VERSION-android-universal-play.aab
+          python3 scripts/verify_release.py verify-checksums --directory dist \
+            --checksums dist/SHA256SUMS.txt
+
+      - name: Upload workflow artifacts (14 days)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "${{ github.ref_name }}-release"
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve incomplete build diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "${{ github.ref_name }}-incomplete"
+          path: dist/
+          if-no-files-found: warn
+          retention-days: 14
+
+  notes:
+    name: Generate release notes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: tag-guard
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Generate notes since the previous stable release
+        env:
+          DAYROWS_RELEASE_TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "refs/tags/$DAYROWS_RELEASE_TAG:refs/tags/$DAYROWS_RELEASE_TAG"
+          ROOT_SHA="$(git rev-list --max-parents=0 HEAD)"
+          BASE="$(python3 scripts/release_verify.py notes-baseline \
+            --head "$DAYROWS_RELEASE_TAG" --fallback "$ROOT_SHA")"
+          echo "Generating notes from $BASE..$DAYROWS_RELEASE_TAG"
+          python3 scripts/release_verify.py notes \
+            --base-ref "$BASE" --head-ref "$DAYROWS_RELEASE_TAG" --version "$(cat VERSION)" \
+            --previous-stable "$([ "$BASE" != "$ROOT_SHA" ] && echo "$BASE" || echo 'initial release')" \
+            --output dist/RELEASE-NOTES.md
+          cat dist/RELEASE-NOTES.md
+
+      - name: Upload notes artifact (14 days)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "${{ github.ref_name }}-release-notes"
+          path: dist/RELEASE-NOTES.md
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Verify staging and publish GitHub release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [tag-guard, build, notes]
+    if: ${{ !failure() && !cancelled() }}
+    permissions:
+      contents: write
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Install Android build tools for verification
+        run: |
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+            'build-tools;36.0.0'
+
+      - name: Download tagged build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: "${{ github.ref_name }}-release"
+          path: dist/
+
+      - name: Download release notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: "${{ github.ref_name }}-release-notes"
+          path: dist/
+
+      - name: Assemble final release body
+        run: |
+          set -euo pipefail
+          VERSION="$(cat VERSION)"
+          {
+            echo "# DayRows $VERSION"
+            echo
+            cat dist/RELEASE-NOTES.md
+            echo
+            echo '## Google Play'
+            echo
+            echo "The Play AAB asset is the upload package for the manual Play Console"
+            echo 'step: download it and upload to the internal testing track (see'
+            echo 'docs/AUDIT_REPORT.md §F). Play acceptance is a separate destination'
+            echo 'state and is not implied by this GitHub release.'
+          } > dist/RELEASE-NOTES-FULL.md
+
+      - name: Re-verify checksums and signatures in the release job
+        env:
+          DAYROWS_EXPECTED_SIGNER: ${{ vars.DAYROWS_UPLOAD_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          VERSION="$(cat VERSION)"
+          CODE="$(python3 -c 'import sys; sys.path.insert(0, "scripts"); from build_debug import version_code; print(version_code("'"$VERSION"'"))')"
+          SIG_ARGS=(--package it.stefanogozzi.dayrows --version "$VERSION" --code "$CODE")
+          [ -n "$DAYROWS_EXPECTED_SIGNER" ] && SIG_ARGS+=(--expected-signer-sha256 "$DAYROWS_EXPECTED_SIGNER")
+          BT="${ANDROID_HOME}/build-tools/36.0.0"
+          for a in apk aab; do
+            case "$a" in
+              apk) FILE="dist/DayRows-$VERSION-android-universal-release.apk";;
+              aab) FILE="dist/DayRows-$VERSION-android-universal-play.aab";;
+            esac
+            BT="$BT" python3 scripts/verify_release.py "$a" "${SIG_ARGS[@]}" --input "$FILE"
+          done
+          python3 scripts/verify_release.py verify-checksums \
+            --directory dist --checksums dist/SHA256SUMS.txt
+
+      - name: Stage the draft release with verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release_publish.py stage \
+            --repo "$GITHUB_REPOSITORY" --tag "$DAYROWS_RELEASE_TAG" \
+            --version "$(cat VERSION)" \
+            --directory dist --checksums dist/SHA256SUMS.txt \
+            --notes dist/RELEASE-NOTES-FULL.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release_publish.py publish \
+            --repo "$GITHUB_REPOSITORY" --tag "$DAYROWS_RELEASE_TAG"
+          gh release view "$DAYROWS_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,url,publishedAt,assets \
+            --jq '{isDraft: .isDraft, url: .url, publishedAt: .publishedAt, assets: [.assets[].name]}'

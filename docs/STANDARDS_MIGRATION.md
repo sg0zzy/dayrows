@@ -5,6 +5,11 @@
 https://github.com/sg0zzy/dev-standards. No standards tags existed; `main` was
 resolved once and the full commit pinned. All policy documents, templates and
 examples were read. No central content was modified or vendored.
+On 2026-10-20 a stable release workflow was implemented under the developer's
+release-infrastructure request (`release.yml`, `scripts/release_verify.py`,
+`scripts/release_publish.py`, `scripts/tests/test_release_gates.py`); GitHub
+Releases stable is now `automatic`-after-authorized-tag and Play remains manual.
+See the 2026-10-20 entry below.
 
 Application source baseline: `fc102f0d3d7274040a15ded96f537270423bccbc`, plus this
 uncommitted migration. Initial Git status was clean. GitHub tags/releases inventory
@@ -161,3 +166,58 @@ signing/history and valuable-settings recovery gaps prevent full compliance and
 prevent claiming the repository is ready for official beta/stable publication.
 Local managed debug development is validated; CI is configured and statically
 validated, with live execution pending.
+
+## Stable release pipeline addendum — 2026-10-20
+
+Scope: the developer requested a release-producing GitHub Actions workflow that
+prepares store-uploadable output at a tag, generates GitHub release notes and
+publishes the GitHub Release; Play upload stays manual for now. Authorization
+basis: this explicit task instruction; per SECURITY.md the annotated stable tag
+push itself is the documented per-release act, and the workflow performs no other
+remote operation. Nothing in this addendum was executed against the remote:
+no commit, tag, push, release or secret write occurred while implementing it.
+
+Changes:
+
+| Files | Result |
+| --- | --- |
+| `.github/workflows/release.yml` (new) | Stable Release: annotated `vX.Y.Z` tag push trigger; tag/version/annotation/high-water/branch-tip gates; signed APK+AAB packaging with unit tests and lint; identity/signature/alignment/SDK verification and `SHA256SUMS.txt` staging; notes since the previous published stable; write-scoped publish job (draft staging, aggregate gate, publish) |
+| `.github/workflows/build-apk.yml` | Added the standard SDK `local.properties` write for the managed helper; behavior otherwise unchanged |
+| `scripts/release_verify.py` (new) | Tag-classification/SemVer-precedence/reservation gate and notes baseline/generation tools used by the workflow; official stream semantics per pinned VERSIONING/RELEASE |
+| `scripts/release_publish.py` (new) | Idempotent draft staging (checksum-gated asset upload, draft-staging replacement allowed, published-asset replacement blocked) and publish reconciliation via `gh` |
+| `scripts/tests/test_release_gates.py` (new) | 26 tests: VERSIONING.md precedence examples, malformed/nonofficial tag classification, high-water/baseline/inversion branches, stage tamper/missing/malformed records, note bodies, fixture-repo tag-gate failures/passes |
+| `docs/DEVELOPMENT.md` | Stable release workflow documentation and destination matrix updates (GitHub stable automatic-after-tag; Play manual staging handoff) |
+
+Validation performed locally (no remote writes):
+
+| Check | Observed result/evidence |
+| --- | --- |
+| Standards re-verification | `scripts/check_standards.py` against a fresh verified detached checkout of pin `e3111c4…`: 20 files verified, exit 0 |
+| Infrastructure + new tests | `python3 -m unittest discover -s scripts/tests -v`: 45 tests OK (19 prior + 26 release-gate) |
+| Workflow syntax | Both YAML files parse; every inline `run` script passes `bash -n`; shellcheck-style manual review |
+| Action pins | checkout v7.0.1, setup-java v6.1.0, upload-artifact v7.0.2, download-artifact v8.0.2 SHAs resolved against the official repositories (`git ls-remote` of the tags) |
+| Tag-gate fixture | Annotated/lightweight/wrong-subject/SHA-mismatch/version-mismatch/noncanonical tags in a throwaway repo fail closed; correct annotated tag passes; `ls-remote` branch-tip containment rejects a tag not on the remote main tip; live high-water ran read-only against `sg0zzy/dayrows` (0 official records) |
+| Notes/baseline fixture | `notes-baseline` fallback/inversion/stable-selection branches; `notes` generation from root and tag baselines with compare links |
+| Staging/publish fixture | Stage→publish→idempotent-republish cycle against a scripted fake `gh`; checksum-tampered, changed-published-byte, missing and malformed record inputs fail closed; draft restage replaces unpublished staging assets |
+
+Compliance status after this addendum: the stable-tag publication pipeline
+central cases S01 (tag syntax/annotation/version checks), S04 (tag-source
+mandatory build + verification before publication gate) and S05 (notes since the
+previous published stable with root fallback), plus the aggregate-gate security
+requirements (build/publish permission separation, draft staging, immutable
+published assets), are implemented and locally validated. Still open (unchanged
+or newly explicit):
+
+- S02/S03 stable preparation dry-run transaction remains absent: the publisher
+  creates the annotated tag manually (tag+push is the explicit authorization).
+- Beta stream (`-dev.N` allocation), durable release records and cross-version
+  publication ordering between concurrent beta/stable runs are not implemented;
+  the `stable-release` concurrency group serializes only stable runs.
+- B3/B4 remain publisher prerequisites: without an upload keystore/secret set and
+  Play history inventory, the release build produces an unsigned package and the
+  verification gate fails the workflow by design (never a debug-signed fallback).
+- Real run/live remote execution of the workflow has not occurred; the
+  first execution must be on the actual authorized tag push.
+
+Configuration revision: `docs/standards-lock.json` pin unchanged
+(`e3111c4e9dc652f833a5f2ba5232c292646e7969`); no central policy text was altered.
