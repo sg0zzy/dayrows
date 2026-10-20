@@ -78,10 +78,14 @@ Enable USB debugging and connect an Android device (or start an emulator):
 ```bash
 adb devices
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n it.stefanogozzi.dayrows/.MainActivity
+adb shell am start -n it.stefanogozzi.dayrows.debug/.MainActivity
 ./gradlew testDebugUnitTest
 ./gradlew lintDebug
 ```
+
+The debug build installs as the separate package `it.stefanogozzi.dayrows.debug`
+(label "DayRows Debug"), so it can be installed beside a production
+`it.stefanogozzi.dayrows` release without uninstalling either.
 
 If multiple devices are connected, add `-s <serial>` to each `adb` command.
 Grant access, select real device calendars, test all three day modes, navigation,

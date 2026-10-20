@@ -87,8 +87,12 @@ def verify_apk(apk, sdk, version):
         raise ValueError('Debug APK lacks a verified signing certificate')
     badging = run(str(tools / 'aapt'), 'dump', 'badging', str(apk))
     package = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
-    if not package or package.groups() != ('it.stefanogozzi.dayrows', str(version_code(version)), version):
-        raise ValueError('APK package/version differs from authoritative metadata')
+    # The debug build installs beside production: package gains the .debug suffix and
+    # versionName the -debug suffix; the authoritative core (VERSION) still binds them.
+    if not package or package.groups() != ('it.stefanogozzi.dayrows.debug', str(version_code(version)),
+                                           f'{version}-debug'):
+        raise ValueError('Debug APK package/version differs from the authoritative metadata '
+                         '(expected it.stefanogozzi.dayrows.debug / core version with -debug suffix)')
     if "sdkVersion:'26'" not in badging or "targetSdkVersion:'36'" not in badging:
         raise ValueError('Unexpected Android SDK compatibility')
     return dict(application_id=package[1], version_code=int(package[2]), version_name=package[3],

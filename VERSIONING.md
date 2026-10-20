@@ -25,11 +25,18 @@ Prerelease strings fail closed. Local builds do not consume production reservati
 Do not introduce beta slots, seed a production counter or renumber existing
 packages until all allocated/submitted/distributed codes and real signing identities
 have been inventoried. Production update ordering and release automation remain
-explicit adoption gaps. No tags/releases existed in the inspected GitHub inventory;
-that observation does not establish Play submission history.
+explicit adoption gaps.
+
+Debug builds install next to production: the debug package appends `.debug` to the
+application ID and `-debug` to the display versionName (`0.1.1` → package
+`it.stefanogozzi.dayrows.debug`, versionName `0.1.1-debug`, shared versionCode 2)
+so the debug key never collides with the Play upload key. This is a display/install
+coexistence suffix only; it adds no official version identity, does not touch the
+authoritative `VERSION`, and does not create an update edge between the variants.
+The release package remains exactly `it.stefanogozzi.dayrows` / `versionName 0.1.1`.
 
 Compatibility concerns are settings persistence, calendar identity and Android
 updates. Before 1.0 a minor version may change settings format; patches aim to
 preserve preferences. Any actual migration still needs central data-recovery
-safeguards. This adoption changes neither settings nor package identity/signing.
-See [release readiness](docs/DEVELOPMENT.md#official-releases-and-distribution).
+safeguards. Debug/release packages keep independent DataStore state (per-application-ID
+data directories). See [release readiness](docs/DEVELOPMENT.md#official-releases-and-distribution).

@@ -33,6 +33,36 @@ Requirements: JDK 17+ (validated with 21), Python 3.11+, Git, Android SDK platfo
 36 and build-tools 36.0.0. Gradle 8.14.3, AGP 8.13.0 and Kotlin 2.2.20 are pinned.
 Initial Gradle/dependency downloads require internet access.
 
+### Package IDs and coexistence
+
+Debug and release builds install side by side on one device; they no longer share
+an application ID (different signing keys alone made one replace the other fail
+with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
+
+| Build type | Application ID | versionName | Label | Signature |
+| --- | --- | --- | --- | --- |
+| `debug` | `it.stefanogozzi.dayrows.debug` (`applicationIdSuffix = ".debug"`) | `0.1.1-debug` (`versionNameSuffix = "-debug"`) | DayRows Debug | Generated Android debug key — never the production upload keystore |
+| `release` | `it.stefanogozzi.dayrows` | `0.1.1` | DayRows | Official upload key via the `DAYROWS_RELEASE_*` env contract |
+
+versionCode stays shared (core-derived, e.g. 0.1.1 → 2); it orders updates inside a
+variant only, and the two packages never uninstall or overwrite each other. DataStore
+preferences live under each package's own data directory (`/data/data/<applicationId>`),
+so the two variants keep independent local state. Calendar Provider access and
+`READ_CALENDAR` are declared once in the main manifest and work identically in both
+variants; the Settings "app details" intent uses the runtime `packageName`, so it
+always opens the correct variant. No custom ContentProvider/FileProvider authorities
+exist to suffix.
+
+Install either one without uninstalling the other:
+
+```bash
+adb install app/build/outputs/apk/debug/app-debug.apk       # DayRows Debug
+adb install app/build/outputs/apk/release/app-release.apk   # release; -unsigned fails by design
+```
+
+The managed help tool archives the debug target with the `.debug` package and
+`-debug` display name; see [VERSIONING.md](VERSIONING.md) for the adapter rules.
+
 ```bash
 export ANDROID_HOME="$HOME/Android/Sdk"
 # Or use untracked local.properties containing sdk.dir=/absolute/sdk/path.

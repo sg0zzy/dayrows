@@ -102,6 +102,15 @@ android {
         release {
             // Unsigned when the profile is absent; never falls back to the debug signer.
             signingConfig = signingConfigs.findByName("official")
+            resValue("string", "application_label", "DayRows")
+        }
+        debug {
+            // Separate installable package so debug and production builds coexist on one
+            // device without INSTALL_FAILED_UPDATE_INCOMPATIBLE (different signing keys).
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            // Debug-only label override; release keeps the canonical DayRows label.
+            resValue("string", "application_label", "DayRows Debug")
         }
     }
 }
