@@ -209,7 +209,7 @@ class SymbolsPackageTest(unittest.TestCase):
     def test_check_rejects_bogus_manifest_digest(self):
         self.build_symbols()
         with zipfile.ZipFile(self.symbols_path()) as source:
-            records = source.read("symbols/MANIFEST.txt").decode()
+            records = source.read("MANIFEST.txt").decode()
         forged = re.sub(r"sha256=[0-9a-f]{64}", "sha256=" + "0" * 64, records)
         forged_path = self.symbols_path("forged.zip")
         with zipfile.ZipFile(self.symbols_path()) as source, \
@@ -234,75 +234,67 @@ class SymbolsPackageTest(unittest.TestCase):
     def test_manifest_records_source_archive_digest(self):
         symbols = self.build_symbols()
         with zipfile.ZipFile(symbols) as zipped:
-            manifest = zipped.read("symbols/MANIFEST.txt").decode()
+            manifest = zipped.read("MANIFEST.txt").decode()
             import hashlib
             digest = hashlib.sha256(self.aab.read_bytes()).hexdigest()
         self.assertIn(f"Archive SHA-256: {digest}", manifest)
 
 
-class SymbolsMappingTest(unittest.TestCase):
-    """mapping.txt inclusion flow when R8 minification is enabled."""
+class SymbolsLayoutTest(unittest.TestCase):
+    """Play layout gates: lib/<abi> at the zip root, Android ABIs only."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.aab = self.root / "app.aab"
-        self.mapping = self.root / "mapping.txt"
         with zipfile.ZipFile(self.aab, "w", zipfile.ZIP_DEFLATED) as bundle:
-            bundle.writestr("base/lib/arm64-v8a/libone.so", b"elf-arm64\x01")
+            for abi in ("arm64-v8a", "x86_64"):
+                bundle.writestr(f"base/lib/{abi}/libone.so", f"elf-{abi}".encode())
             bundle.writestr("base/manifest/AndroidManifest.xml", b"<manifest/>")
-        self.mapping.write_text(
-            "# compiler: R8\n# compiler_version: 8.13.6\nit.stefanogozzi.dayrows.MainActivity -> a.b:\n")
 
-    def test_build_includes_mapping_with_digest(self):
+    def build_symbols(self, name="symbols.zip") -> Path:
         import release_symbols
-        output = self.root / "symbols.zip"
-        release_symbols.package(str(self.aab), str(output), "", mapping=str(self.mapping))
-        with zipfile.ZipFile(output) as zipped:
-            manifest = zipped.read("symbols/MANIFEST.txt").decode()
-            shipped = zipped.read("symbols/mapping.txt")
-        self.assertIn("R8/Proguard mapping.txt: present", manifest)
-        import hashlib
-        self.assertIn(f"sha256={hashlib.sha256(shipped).hexdigest()}", manifest)
+        output = self.root / name
+        release_symbols.package(str(self.aab), str(output), "")
+        return output
 
-    def test_check_passes_with_mapping(self):
-        import release_symbols
-        output = self.root / "symbols.zip"
-        release_symbols.package(str(self.aab), str(output), "", mapping=str(self.mapping))
-        release_symbols.check(str(output), str(self.aab))
+    def test_built_layout_has_root_lib_directory(self):
+        with zipfile.ZipFile(self.build_symbols()) as zipped:
+            tops = {name.split("/")[0] for name in zipped.namelist()}
+        self.assertEqual(tops, {"lib", "MANIFEST.txt"})
 
-    def test_check_rejects_tampered_mapping(self):
+    def test_check_rejects_symbols_wrapper_directory(self):
+        source = self.build_symbols("ok.zip")
+        wrapped = self.root / "wrapped.zip"
+        with zipfile.ZipFile(source) as ok, zipfile.ZipFile(wrapped, "w") as out:
+            for name in ok.namelist():
+                out.writestr(("symbols/" + name) if name.startswith("lib/") else name,
+                             ok.read(name))
         import release_symbols
-        output = self.root / "symbols.zip"
-        release_symbols.package(str(self.aab), str(output), "", mapping=str(self.mapping))
-        tampered = self.root / "tampered.zip"
-        with zipfile.ZipFile(output) as source, zipfile.ZipFile(tampered, "w") as out:
-            for name in source.namelist():
-                data = source.read(name)
-                if name == "symbols/mapping.txt":
-                    data = data.replace(b"it.stefanogozzi.dayrows", b"it.dayrows")
-                out.writestr(name, data)
         with self.assertRaises(SystemExit):
-            release_symbols.check(str(tampered), str(self.aab))
+            release_symbols.check(str(wrapped), str(self.aab))
 
-    def test_check_rejects_missing_mapping_record(self):
+    def test_check_rejects_embedded_mapping_file(self):
+        source = self.build_symbols("ok2.zip")
+        polluted = self.root / "polluted.zip"
+        with zipfile.ZipFile(source) as ok, zipfile.ZipFile(polluted, "w") as out:
+            for name in ok.namelist():
+                out.writestr(name, ok.read(name))
+            out.writestr("mapping.txt", "# compiler: R8")
         import release_symbols
-        output = self.root / "symbols.zip"
-        release_symbols.package(str(self.aab), str(output), "", mapping=str(self.mapping))
-        forged = self.root / "forged.zip"
-        with zipfile.ZipFile(output) as source, zipfile.ZipFile(forged, "w") as out:
-            for name in source.namelist():
-                if name == "symbols/MANIFEST.txt":
-                    line = re.search(r"^ (.*mapping\.txt.*sha256=[0-9a-f]{64})$", source.read(name).decode(), re.MULTILINE)
-                    continue  # drop the record below
-                out.writestr(name, source.read(name))
-            # re-write manifest without the mapping line
-            manifest = source.read("symbols/MANIFEST.txt").decode()
-            cleaned = "\n".join(l for l in manifest.splitlines() if "mapping.txt" not in l) + "\n"
-            out.writestr("symbols/MANIFEST.txt", cleaned)
         with self.assertRaises(SystemExit):
-            release_symbols.check(str(forged), str(self.aab))
+            release_symbols.check(str(polluted), str(self.aab))
+
+    def test_check_rejects_non_android_abi(self):
+        source = self.build_symbols("ok3.zip")
+        foreign = self.root / "foreign.zip"
+        with zipfile.ZipFile(source) as ok, zipfile.ZipFile(foreign, "w") as out:
+            for name in ok.namelist():
+                out.writestr(name.replace("x86_64/", "riscv64/"), ok.read(name))
+        import release_symbols
+        with self.assertRaises(SystemExit):
+            release_symbols.check(str(foreign), str(self.aab))
 
 
 class RemoteTagTest(unittest.TestCase):

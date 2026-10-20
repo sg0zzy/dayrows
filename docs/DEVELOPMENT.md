@@ -199,10 +199,13 @@ authorization for that release build. The pipeline has four jobs:
    (`package`, both versions, min/target SDK), signature validity, zipalign and
    the signer fingerprint against `vars.DAYROWS_UPLOAD_CERT_SHA256` when that
    variable is configured. Final staged bytes are
-   `DayRows-<version>-android-universal-{release.apk,play.aab}` and
+   `DayRows-<version>-android-universal-{release.apk,play.aab}`,
    `dist/DayRows-<version>-android-universal-symbols.zip` (the native debug
-   symbols package: every `.so` shipped in the bundle plus a
-   `MANIFEST.txt` with size/SHA-256 records for each library), plus
+   symbols package: every `.so` shipped in the bundle at `lib/<abi>/` in the zip
+   root — the layout Play's validator requires — plus a `MANIFEST.txt` with
+   size/SHA-256 records), `dist/DayRows-<version>-android-universal-mapping.txt`
+   (the R8/Proguard mapping, uploaded to Play's separate deobfuscation-file
+   slot; never embedded in the symbols zip), and
    `dist/SHA256SUMS.txt` (generated and transport-verified). Verified staging
    uploads as a 14-day workflow artifact named
    `<tag>-release`; failed runs upload `<tag>-incomplete`.
@@ -223,14 +226,15 @@ authorization for that release build. The pipeline has four jobs:
    the tag, draft and staging evidence intact either way.
 
 The AAB asset is downloaded and uploaded to Play Console
-manually and that acceptance is a separate destination state. The
-`symbols.zip` asset is uploaded in Play Console under the release's
-"Debug symbols" step (App bundle explorer → Downloads → Debug symbols, or the
-review release panel); it carries the R8/Proguard `mapping.txt` (Play uses it to
-retrace obfuscated Java/Kotlin stack traces in Android Vitals) plus the native
-`.so` set for crash/ANR frame attribution. If a future build disables
-minification the mapping is simply absent from the zip and native frames alone
-are attributed. The workflow does not
+manually and that acceptance is a separate destination state. Two more assets
+feed Play's deobfuscation pipeline: the `symbols.zip` (native `.so` set,
+`lib/<abi>/` at the zip root) goes to the release's "Debug symbols" step, and
+the `mapping.txt` file goes to the **deobfuscation file** slot — Play rejects
+symbols archives that embed the mapping or use a different top-level directory
+("Only Android ABIs are supported"). With them uploaded, Android Vitals shows
+retraced Java/Kotlin stack traces and attributed native crash/ANR frames. If a
+future build disables minification, the mapping asset simply vanishes and only
+native frames are attributed. The workflow does not
 implement beta allocation (`-dev.N`), durable release/ledger records, or the
 Play delivery destination; those remain explicit gaps, and the tag workflow's
 `notes-baseline` resolver covers the notes-side requirements only.

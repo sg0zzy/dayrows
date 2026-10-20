@@ -90,8 +90,9 @@ def release_body(repository: str, tag: str, version: str, notes_file: str,
     lines += ["", "## Google Play", "",
               "The `.aab` above is the Play upload package: download it and upload it",
               "to the internal testing track in Play Console (manual step; see",
-              "docs/AUDIT_REPORT.md §F). The `symbols.zip` asset packages the native",
-              "debug symbols for the manual Play Console \"Debug symbols\" upload;",
+              "docs/AUDIT_REPORT.md §F). Then, in the same release's [Debug symbols]",
+              "step, upload the `symbols.zip` (native `.so` set, `lib/<abi>` at the zip",
+              "root) and, in the **deobfuscation file** slot, the `mapping.txt` asset.",
               "Play acceptance is a separate destination state and is not implied by",
               "this GitHub release."]
     return "\n".join(lines) + "\n"
