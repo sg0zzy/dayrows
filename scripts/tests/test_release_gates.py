@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Isolated tests for the official release gates: no real API calls, no repo mutation."""
 from pathlib import Path
+import json
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from release_publish import PublishError, asset_digests, release_body
 from release_verify import (GateError, command_baseline, command_tag, official_versions,
                             parse_tag, parse_version, precedence_key)
+import release_publish
 import release_verify
 
 
@@ -155,6 +157,49 @@ class StageAssetsTest(unittest.TestCase):
             asset_digests(str(self.dist), str(checksums))
 
 
+class RemoteTagTest(unittest.TestCase):
+    """remote_tag_sha: existing annotated/lightweight tag, missing tag, malformed ref."""
+
+    def command_target(self):
+        try:
+            return release_publish.remote_tag_sha("sg0zzy/dayrows", "v0.1.1")
+        except release_publish.PublishError as error:
+            return error
+
+    def test_missing_tag_fails_with_push_hint(self):
+        with patch.object(release_publish.subprocess, "run",
+                          lambda args, **k: subprocess.CompletedProcess(args, 1, "",
+                                                                        "HTTP 404: Not Found")):
+            error = self.command_target()
+        self.assertIn("does not exist", str(error))
+
+    def test_annotated_tag_peels_to_commit(self):
+        ref = json.dumps({"object": {"sha": "TAGSHA", "type": "tag"}})
+        peeled = json.dumps({"object": {"sha": "COMMITSHA", "type": "commit"}})
+
+        def fake_run(args, **kwargs):
+            if "git/ref/tags/" in args[2]:
+                return subprocess.CompletedProcess(args, 0, ref, "")
+            return subprocess.CompletedProcess(args, 0, peeled, "")
+        with patch.object(release_publish.subprocess, "run", fake_run):
+            self.assertEqual(release_publish.remote_tag_sha("sg0zzy/dayrows", "v0.1.1"),
+                             "COMMITSHA")
+
+    def test_lightweight_tag_returns_commit(self):
+        ref = json.dumps({"object": {"sha": "COMMITSHA", "type": "commit"}})
+        with patch.object(release_publish.subprocess, "run",
+                          lambda args, **k: subprocess.CompletedProcess(args, 0, ref, "")):
+            self.assertEqual(release_publish.remote_tag_sha("sg0zzy/dayrows", "v0.1.1"),
+                             "COMMITSHA")
+
+    def test_malformed_ref_fails(self):
+        with patch.object(release_publish.subprocess, "run",
+                          lambda args, **k: subprocess.CompletedProcess(
+                              args, 0, json.dumps({"object": {}}), "")):
+            error = self.command_target()
+        self.assertIn("unexpected remote ref payload", str(error))
+
+
 class ReleaseBodyTest(unittest.TestCase):
     def test_notes_and_checksums_rendered(self):
         notes = Path(tempfile.mkdtemp()) / "n.md"
@@ -164,6 +209,7 @@ class ReleaseBodyTest(unittest.TestCase):
         self.assertIn("# DayRows 0.1.1", body)
         self.assertIn("Changes.", body)
         self.assertIn("[`a.bin`](../../releases/download/v0.1.1/a.bin)", body)
+        self.assertIn("[`SHA256SUMS.txt`](../../releases/download/v0.1.1/SHA256SUMS.txt)", body)
         self.assertIn("Google Play", body)
 
 

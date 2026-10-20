@@ -137,10 +137,11 @@ it is untracked and its content digest is observed for source coherence only.
 ## Stable release workflow
 
 [Stable Release](../.github/workflows/release.yml) implements the stable column of
-the build matrix and the GitHub Releases destination (mode `automatic` after an
-authorized tag push; Play remains `disabled` with manual follow-up). It is
-triggered by pushing an annotated `vX.Y.Z` tag, which is the publisher
-authorization for that release. The pipeline has four jobs:
+the build matrix and drafts the GitHub Release for the authorized tag; Play
+remains `disabled` with a manual follow-up, and flipping the draft public is the
+publisher's manual decision (`gh release edit <tag> --draft=false` or the web
+UI). It is triggered by pushing an annotated `vX.Y.Z` tag, which is the publisher
+authorization for that release build. The pipeline has four jobs:
 
 1. `tag-guard` (read-only): validates the tag with
    `scripts/release_verify.py tag` — canonical `vMAJOR.MINOR.PATCH`, equality
@@ -150,18 +151,26 @@ authorization for that release. The pipeline has four jobs:
    remote official state (`gh api` matching tags plus published releases;
    nonofficial tag names are ignored, unparseable official records block).
    Requires the full history fetch of the exact tag object.
-2. `build` (read-only permissions; secrets only for signing): unit tests, lint,
-   `assembleRelease`, `bundleRelease` with the opt-in `DAYROWS_RELEASE_*` env
-   credential contract from `app/build.gradle.kts`. Secrets:
-   `PLAY_UPLOAD_KEYSTORE_B64` (base64 of the `.jks` upload keystore),
-   `PLAY_UPLOAD_KEY_ALIAS`, `PLAY_UPLOAD_STORE_PASSWORD`,
-   `PLAY_UPLOAD_KEY_PASSWORD`. Missing material produces an unsigned package that
-   the next step rejects — signing failures never fall back to the debug signer.
-   `scripts/verify_release.py apk|aab` verify decoded identity (`package`, both
-   versions, min/target SDK) and the signer fingerprint against
-   `vars.DAYROWS_UPLOAD_CERT_SHA256` when configured. Final staged bytes are
-   renamed to `DayRows-<version>-android-universal-{release.apk,play.aab}` and
-   `dist/SHA256SUMS.txt` is generated and transport-verified. Verified staging
+2. `build` (read-only permissions): unit tests, lint, `assembleRelease` and
+   `bundleRelease` with the opt-in `DAYROWS_RELEASE_*` env credential contract
+   from `app/build.gradle.kts`. Repository secrets:
+   `ANDROID_KEYSTORE_BASE64` (base64 of the `.jks` upload keystore),
+   `ANDROID_KEY_ALIAS`, `ANDROID_KEYSTORE_PASSWORD`,
+   `ANDROID_KEY_PASSWORD`. The keystore is restored from base64 into a fresh
+   `mktemp` directory **under `RUNNER_TEMP`** — outside the workspace, so no
+   artifact upload can include it — exported to Gradle via `DAYROWS_RELEASE_KEYSTORE`,
+   and shredded (`shred -u`) before the job ends on any outcome. Missing material
+   produces an unsigned package that the verification gate rejects — signing
+   failures never fall back to the debug signer — and a partially configured
+   credential set fails the Gradle all-or-none check. Ordinary CI
+   ([build-apk.yml](../.github/workflows/build-apk.yml), push/PR/dispatch) uses
+   no secrets at all, so untrusted pull-request workflows never receive signing
+   credentials. `scripts/verify_release.py apk|aab` verify decoded identity
+   (`package`, both versions, min/target SDK), signature validity, zipalign and
+   the signer fingerprint against `vars.DAYROWS_UPLOAD_CERT_SHA256` when that
+   variable is configured. Final staged bytes are
+   `DayRows-<version>-android-universal-{release.apk,play.aab}` and
+   `dist/SHA256SUMS.txt` (generated and transport-verified). Verified staging
    uploads as a 14-day workflow artifact named
    `<tag>-release`; failed runs upload `<tag>-incomplete`.
 3. `notes` (read-only): resolves the previous successfully published stable tag
@@ -172,17 +181,15 @@ authorization for that release. The pipeline has four jobs:
 4. `release` (contents: write, the only write-scoped job): downloads both
    artifacts, decodes them against the tag's `VERSION`, re-verifies signatures
    and all transport checksums (independent verification of artifact bytes).
-   `scripts/release_publish.py stage` then creates/updates a **draft** release at
-   the immutable tag with the checksummed assets and the assembled notes body
-   (draft retries may replace unpublished staging assets after hash checks;
-   published assets are immutable and a retry with differing bytes fails as an
-   incident instead of replacing them), and `publish` flips the complete draft
-   public after reconciliation. Publication failure keeps the tag, the draft and
-   its staging evidence.
+   `scripts/release_publish.py stage` refuses to run without the remote tag,
+   then creates/updates a **draft** release at that tag with the checksummed
+   assets, `SHA256SUMS.txt` and the assembled notes body (staging retries may
+   replace unpublished draft assets after hash checks; published assets are
+   immutable and a retry with differing bytes fails as an incident instead of
+   replacing them). The workflow leaves the release in draft; publication keeps
+   the tag, draft and staging evidence intact either way.
 
-The workflow re-reconciles release state at publication (idempotent success for
-an already published identical release; `gh release edit --draft=false` after the
-aggregate gate). The AAB asset is downloaded and uploaded to Play Console
+The AAB asset is downloaded and uploaded to Play Console
 manually and that acceptance is a separate destination state. This workflow does
 not implement beta allocation (`-dev.N`), durable release/ledger records, or the
 Play delivery destination; those remain explicit gaps, and the tag workflow's
@@ -198,9 +205,9 @@ No official update edges (including cross-GitHub/Play) are promised yet.
 | Destination | Platform/architecture | Channel | Artifacts | Mode |
 | --- | --- | --- | --- | --- |
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Beta | Release APK, manifest, SHA-256 checksums | Disabled pending implementation |
-| GitHub Releases, `sg0zzy/dayrows` | Android/universal | Stable | Release APK + AAB, SHA-256 checksums, verified notes | `automatic` after an authorized annotated `vX.Y.Z` tag push ([Stable Release](../.github/workflows/release.yml)) |
+| GitHub Releases, `sg0zzy/dayrows` | Android/universal | Stable | Release APK + AAB, SHA-256 checksums, verified notes | Draft staged `automatic`ally after an authorized annotated `vX.Y.Z` tag push; visibility flip is `manual` ([Stable Release](../.github/workflows/release.yml)) |
 | Google Play, `it.stefanogozzi.dayrows` | Android/universal | Beta | None enabled | Disabled |
-| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB when configured | `manual`: the AAB release asset is staged by the GitHub pipeline, the human uploads it in Play Console and records acceptance |
+| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB when configured | `manual`: the AAB draft asset is staged by the GitHub pipeline, the human uploads it in Play Console and records acceptance |
 
 All other destinations default to disabled. Credentials/environment references and
 automated retry identities are intentionally unconfigured while disabled; no tool

@@ -135,8 +135,13 @@ def parse_keytool_fingerprint(output: str) -> str:
     return fingerprints.pop()
 
 
+def normalize_fingerprint(value: str) -> str:
+    """Accept colon- or space-separated display formats as well as raw hex."""
+    return re.sub(r"[^0-9a-fA-F]", "", value.strip()).lower()
+
+
 def require_expected_signer(path: str, fingerprint: str, expected_signer_sha256: str | None) -> None:
-    if expected_signer_sha256 and fingerprint.lower() != expected_signer_sha256.lower():
+    if expected_signer_sha256 and fingerprint.lower() != normalize_fingerprint(expected_signer_sha256):
         raise VerificationError(
             f"{os.path.basename(path)} signer fingerprint {fingerprint} does not match "
             f"the expected official release certificate"

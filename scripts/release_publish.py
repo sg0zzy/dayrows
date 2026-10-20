@@ -85,6 +85,8 @@ def release_body(repository: str, tag: str, version: str, notes_file: str,
         lines.append(
             f"- [`{base}`](../../releases/download/{tag}/{base}) "
             f"(SHA-256 `{checksums[name]}`)")
+    lines.append("- [`SHA256SUMS.txt`](../../releases/download/"
+                 f"{tag}/SHA256SUMS.txt) (checksums for all release assets)")
     lines += ["", "## Google Play", "",
               "The `.aab` above is the Play upload package: download it and upload it",
               "to the internal testing track in Play Console (manual step; see",
@@ -131,6 +133,34 @@ def publish_release(repository: str, tag: str) -> dict:
     return published
 
 
+def remote_tag_sha(repository: str, tag: str) -> str:
+    result = subprocess.run(
+        ["gh", "api", f"repos/{repository}/git/ref/tags/{tag}"],
+        capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        if re.search(r"Not Found|no ref|404", result.stderr, re.IGNORECASE):
+            raise PublishError(
+                f"remote tag {tag} does not exist in {repository}; push the annotated "
+                "tag before staging a release for it")
+        raise PublishError(f"gh api tag lookup failed: {result.stderr.strip()}")
+    ref = json.loads(result.stdout)
+    object_type = ref.get("object", {}).get("type")
+    sha = ref.get("object", {}).get("sha")
+    if object_type not in ("tag", "commit") or not sha:
+        raise PublishError(f"unexpected remote ref payload for {tag}: {object_type!r}")
+    if object_type == "tag":
+        resolved = subprocess.run(
+            ["gh", "api", f"repos/{repository}/git/tags/{sha}"],
+            capture_output=True, text=True, check=False)
+        if resolved.returncode != 0:
+            raise PublishError(f"gh api tag-object lookup failed: {resolved.stderr.strip()}")
+        commit_sha = json.loads(resolved.stdout).get("object", {}).get("sha")
+        if not commit_sha:
+            raise PublishError(f"remote annotated tag {tag} has no peeled commit")
+        return commit_sha
+    return sha
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -142,6 +172,8 @@ def main(argv: list[str] | None = None) -> int:
     stage.add_argument("--directory", required=True, help="dist directory with verified assets")
     stage.add_argument("--checksums", required=True)
     stage.add_argument("--notes", required=True)
+    stage.add_argument("--attach-checksums", action="store_true",
+                       help="attach the checksums file itself as a release asset")
 
     release = commands.add_parser("publish", help="flip the fully staged draft to public")
     release.add_argument("--repo", required=True, help="owner/repo")
@@ -152,6 +184,7 @@ def main(argv: list[str] | None = None) -> int:
         if not STABLE.fullmatch(arguments.tag):
             raise PublishError(f"refusing non-stable tag: {arguments.tag}")
         if arguments.command == "stage":
+            remote_tag_sha(arguments.repo, arguments.tag)
             checksums = asset_digests(arguments.directory, arguments.checksums)
             names = sorted(os.path.basename(name) for name in checksums)
             body_file = arguments.notes + ".body.md"
@@ -184,7 +217,16 @@ def main(argv: list[str] | None = None) -> int:
                                            f"{present[name].get('state')!r}; reconcile manually")
                 run_gh(["gh", "release", "upload", arguments.tag,
                         "--repo", arguments.repo, "--clobber", path])
-            reconcile(arguments.repo, arguments.tag, names,
+            extra_assets = names
+            if arguments.attach_checksums:
+                sums_name = os.path.basename(arguments.checksums)
+                if sums_name not in checksums:  # never sums itself; record absence is expected
+                    extra_assets = [*names, sums_name]
+                    sums_path = os.path.abspath(arguments.checksums)
+                    if sums_name not in present:
+                        run_gh(["gh", "release", "upload", arguments.tag,
+                                "--repo", arguments.repo, "--clobber", sums_path])
+            reconcile(arguments.repo, arguments.tag, extra_assets,
                       existing.get("isDraft", True) if existing else True)
             print(f"release staged: {len(names)} verified assets attached to the draft")
             return 0

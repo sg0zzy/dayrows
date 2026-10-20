@@ -221,3 +221,28 @@ or newly explicit):
 
 Configuration revision: `docs/standards-lock.json` pin unchanged
 (`e3111c4e9dc652f833a5f2ba5232c292646e7969`); no central policy text was altered.
+
+## Signing hardening and draft-only publication — 2026-10-20 (second pass)
+
+Developer instruction: configure the release pipeline to sign production
+artifacts securely with the four provided `ANDROID_*` secrets, keep Play
+submission manual, and stop automatic GitHub Release publication (commit/tag
+creation and release publication are operator acts, not workflow behavior).
+
+| Check | Observed result/evidence |
+| --- | --- |
+| Keystore custody | `ANDROID_KEYSTORE_BASE64` is restored with `mktemp -d $RUNNER_TEMP/…` under the runner temp (outside the tree, so artifact scans of `dist/` cannot reach it), exported to Gradle only as the `DAYROWS_RELEASE_KEYSTORE` **path** via `GITHUB_ENV`, and `shred -u` + `rmdir` in an `if: always()` step. No password/key material is ever written to disk, echoed, cached or packaged; `.gitignore` already rejects `*.jks`/`*.keystore` |
+| Ordinary CI isolation | `build-apk.yml` (push/PR/dispatch) contains zero `secrets.` references; `release.yml` has no `pull_request` trigger — untrusted PR workflows cannot receive signing credentials |
+| No automatic publication | The workflow only stages a **draft** (`gh release create --draft` via `release_publish.py stage`); the flip command is printed for the human step. `release_publish.py publish` remains a separate operator command |
+| Staging preconditions | `stage` now refuses to run when the remote tag does not exist (`gh api repos/…/git/ref/tags/…`, annotated refs peeled to the commit) and attaches `SHA256SUMS.txt` as a release asset |
+| Tests | `python3 -m unittest discover -s scripts/tests -v`: 49 tests OK (4 new: annotated-tag peel, lightweight ref, missing tag rejection with push hint, malformed ref rejection) |
+| Fake-API rehearsal | Missing-tag staging fails; present-tag staging creates a draft with exactly `DayRows-…-release.apk`, `DayRows-…-play.aab`, `SHA256SUMS.txt`; interrupted-staging rerun is idempotent; manual `publish` is idempotent; non-stable tag is refused |
+| Workflow syntax | Both YAML files re-parsed; every inline script passes `bash -n`; the release job's `DAYROWS_RELEASE_TAG` was previously undefined in that job and is now set at job level (bug fix) |
+
+Configuration revision: standards pin unchanged; no secret values were requested,
+read or recorded at any point during this work.
+
+Missing configuration remaining (not exposed, none of it blocks the workflow):
+`vars.DAYROWS_UPLOAD_CERT_SHA256` is still unconfigured, so signer-fingerprint
+pinning is advisory-only until the Play App Signing/upload certificate inventory
+(B3) is complete. Play upload stays manual (B4/B5 publisher steps).
