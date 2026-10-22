@@ -578,14 +578,16 @@ passed using the real v0.1.3 verified release artifact. Both Google authenticati
 and upload steps were skipped, and the retained delivery status is `prepared`.
 This validates the hosted workflow without claiming Google Play acceptance.
 
-### Authorized patch bump and source push (2026-10-22)
+### Authorized patch bump, source push and stable tag (2026-10-22)
 
 The user explicitly requested a patch bump, commit and push of the matrix
-new-event and calendar-label work. Advance the authoritative VERSION from 0.1.3
-to 0.1.4 (existing Android core mapping: versionCode 5), without changing
-package IDs, signing identities or permissions. This is a source/development
-bump and branch push, not a stable tag, official signing or release-publication
-operation. No tag is created and no store is contacted.
+new-event and calendar-label work, and then the corresponding stable tag.
+Advance the authoritative VERSION from 0.1.3 to 0.1.4 (existing Android core
+mapping: versionCode 5), without changing package IDs, signing identities or
+permissions. The source push is commit 33c3efb; the annotated stable tag
+v0.1.4 (subject `DayRows 0.1.4`) points at that same commit. The tag is the
+publisher authorization declared by the stable release workflow. No store is
+contacted: Google Play delivery stays a separate manual step.
 
 Verified the pinned standards checkout before preparation. Managed 0.1.4 debug
 packaging, 71 debug unit tests and debug lint passed; release unit tests and
@@ -603,3 +605,20 @@ one-hour 09:00-10:00 local slot and the target calendar identifier; the second
 day column produced the following day, and the read-only calendar exposed no
 new-event action. The local label edited from the matrix persisted across a
 restart and matched the Settings label.
+
+The local tag gate passed before pushing: canonical vX.Y.Z form, VERSION
+agreement, annotated type and exact `DayRows 0.1.4` subject, the tag commit
+equal to the remote main tip, and the remote high-water check over the three
+existing official records. The stable release workflow (run 39859936062) then
+succeeded in all four jobs: tag validation and reservation, signed package
+build, release notes generation over v0.1.3..v0.1.4, and staging verification
+with draft release preparation. The restored upload keystore was shredded on the
+runner.
+
+The staged draft release is still a draft and is not published. The uploaded
+release APK is signed with the production upload certificate (SHA-256
+d99a0ab39b48c56f430e03881b748802385c0a3c3f363351d692abfe1889486a) and reports
+`it.stefanogozzi.dayrows` 0.1.4 versionCode 5. All four published assets verify
+against the published SHA256SUMS.txt. Publishing the GitHub release and the
+manual Play Console upload remain the publisher's decisions and are not claimed
+here.
