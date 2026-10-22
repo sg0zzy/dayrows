@@ -38,6 +38,11 @@
     <string name="save">Salva</string>
     <string name="cancel">Annulla</string>
     <string name="calendar_not_editable">Questo calendario non consente di aggiungere eventi.</string>
+    <string name="select_sync_accounts">Seleziona gli account da sincronizzare</string>
+    <string name="select_sync_accounts_hint">Scegli uno o più account. Gli account che DayRows non può ancora vedere vengono autorizzati uno alla volta tramite il selettore account di sistema.</string>
+    <string name="account_already_allowed">Già consentito per DayRows</string>
+    <string name="account_needs_permission">Richiede la tua autorizzazione</string>
+    <string name="sync_selected_accounts">Sincronizza</string>
     <string name="add_event_on_date">Aggiungi un evento il %1$s</string>
     <string name="edit_label_for_calendar">Modifica l’etichetta di %1$s</string>
     <string name="move_up">Sposta il calendario in alto</string>

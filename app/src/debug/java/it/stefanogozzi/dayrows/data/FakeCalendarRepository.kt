@@ -2,6 +2,7 @@
 package it.stefanogozzi.dayrows.data
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import it.stefanogozzi.dayrows.domain.SyncAccountChoice
 import it.stefanogozzi.dayrows.domain.instanceQueryBounds
 import java.time.*
 
@@ -13,10 +14,16 @@ class FakeCalendarRepository(
     override val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override suspend fun calendars() = sources
     var syncRequests = 0
+    var syncAccounts: List<SyncAccountChoice> = emptyList()
     override suspend fun requestSync(manual: Boolean): CalendarSyncResult {
         syncRequests++
         return CalendarSyncResult.FINISHED
     }
+    override suspend fun requestSync(accounts: List<Pair<String, String>>, manual: Boolean): CalendarSyncResult {
+        syncRequests++
+        return CalendarSyncResult.FINISHED
+    }
+    override suspend fun syncAccounts() = syncAccounts
     override suspend fun instances(ids: Set<Long>, start: LocalDate, endExclusive: LocalDate, zone: ZoneId): List<EventInstance> {
         val (from, to) = instanceQueryBounds(start, endExclusive, zone)
         return events.filter { it.calendarId in ids && it.start < to && it.end >= from }

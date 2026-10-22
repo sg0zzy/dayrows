@@ -94,7 +94,10 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
                                         verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                         if (events.isEmpty()) {
                                             if (editable) {
-                                                Text("+", Modifier.padding(6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                // The marker sits in the middle of the empty cell.
+                                                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                                                    Text("+", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
                                             } else {
                                                 Text("—", Modifier.padding(6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }

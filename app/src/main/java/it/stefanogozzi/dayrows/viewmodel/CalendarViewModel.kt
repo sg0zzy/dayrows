@@ -24,6 +24,8 @@ data class CalendarUiState(
     val syncing: Boolean = false,
     val syncResult: CalendarSyncResult? = null,
     val newCalendars: Int? = null,
+    /** The provider accounts available for synchronization, with their visibility state. */
+    val syncAccounts: List<SyncAccountChoice> = emptyList(),
 ) {
     val matrix: CalendarMatrix get() = CalendarMatrixBuilder().build(calendars, events,
         visibleDates(start, preferences.dayCount), preferences, zone)
@@ -91,6 +93,52 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
     }
     fun refresh() { refreshes.update { it + 1 } }
     fun syncNow() { synchronize() }
+
+    /** Re-reads the local provider only: no sync request, no account prompt. This is the
+     * main page's refresh. */
+    fun refreshLight() { refresh() }
+
+    /** Loads the provider's accounts and their visibility, for the hard-refresh account
+     * selection dialog. */
+    fun loadSyncAccounts() {
+        viewModelScope.launch {
+            try {
+                val accounts = repository.syncAccounts()
+                _state.update { it.copy(syncAccounts = accounts) }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { _state.update { it.copy(error = LoadError.CALENDARS) } }
+        }
+    }
+
+    /** A hard refresh: requests synchronization for the chosen accounts and reloads
+     * calendars and events afterwards. Accounts that still need visibility are handled
+     * by the caller before this is reached. */
+    fun hardRefresh(accounts: List<SyncAccountChoice>) {
+        if (accounts.isEmpty()) { discoverCalendars(true); return }
+        syncAccountsFor(accounts.map { it.name to it.type })
+    }
+
+    /** Synchronizes the given accounts, then reloads metadata and events. */
+    private fun syncAccountsFor(accounts: List<Pair<String, String>>) {
+        if (!permission.value) return
+        syncJob?.takeIf { it.isActive }?.let { return }
+        _state.update { it.copy(syncing = true, syncResult = null) }
+        syncJob = viewModelScope.launch {
+            try {
+                val result = repository.requestSync(accounts, manual = true)
+                _state.update { it.copy(syncResult = result) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                calendarDebug("sync unavailable: ${e.javaClass.simpleName}")
+                _state.update { it.copy(syncResult = CalendarSyncResult.UNAVAILABLE) }
+            } finally {
+                _state.update { it.copy(syncing = false) }
+                // A completed sync can register new calendars, so metadata is read again
+                // before the events are loaded.
+                refresh()
+            }
+        }
+    }
 
     /** All entry points join one job. Provider notifications during the wait are coalesced into
      * the final query, which reloads metadata AND events even if the adapter never notifies us. */

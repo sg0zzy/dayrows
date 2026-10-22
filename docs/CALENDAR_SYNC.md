@@ -14,18 +14,37 @@ without submitting account sync requests, waiting for adapters or asking for
 account access. Provider notifications continue to update DayRows as Android's
 normal account synchronization delivers changes.
 
-**Refresh events** in the main toolbar and **Refresh calendars** in Settings
-explicitly request account synchronization through one coroutine operation.
-It derives distinct account name/type
-pairs from readable provider calendars, including secondary/shared calendars and
-multiple Google accounts. It checks visibility using AccountManager's filtered
+The two refresh buttons differ deliberately.
+
+**Refresh events** in the main toolbar is a **light refresh**: it re-reads the
+local CalendarProvider only, exactly as the first release did. It submits no sync
+request, opens no account chooser and performs no network access. Opening the
+app, resuming it and retrying after an error read local data the same way.
+
+**Refresh calendars** in Settings is a **hard refresh**. It first asks which
+accounts to synchronize through DayRows' own checklist, where one account or
+several may be selected, and only then requests account synchronization through
+one coroutine operation.
+The account list comes from readable provider calendars, including
+secondary/shared calendars and multiple Google accounts, and each entry records
+whether DayRows already holds visibility for it. Visibility is checked using
+AccountManager's filtered
 `getAccountsByType` API, available without `GET_ACCOUNTS` on supported API 26+.
 It does not request calendar write access, Internet access or OAuth credentials.
 Missing account visibility is reported separately from disabled sync.
-Both Reload buttons check source accounts directly in CalendarProvider
-and opens Android's native account chooser when access is missing. On selection,
-it continues the explicit sync and calendar discovery. Cancellation keeps the local
-display and submits no sync from this action. The optional
+
+Only Android can grant account visibility to an app: `AccountManager
+.setAccountVisibility` throws `SecurityException` for a third-party app unless
+its signature matches the authenticator that owns the account type. The system's
+account chooser performs that grant with system privileges, so the hard refresh
+opens Android's native account chooser for each selected account that still
+needs visibility, one account at a time. The chooser is single-select, which is
+why the whole selection is collected before any authorization is requested. A
+cancellation, or an account type with no authenticator registered on the device,
+skips that account and the queue continues with the remaining ones. On selection,
+the hard refresh continues with the explicit sync and calendar discovery.
+Cancellation keeps the local display and submits no sync from this action. The
+optional
 **Allow account synchronization** button also opens the native account chooser,
 limited to provider accounts still needing visibility. Choose an existing account;
 repeat for additional accounts. Canceling preserves local display. The OS retains
@@ -100,13 +119,18 @@ preferences from the production app; select the test calendars in that build.
    the same subscribing Google account. Color can be a per-account preference;
    changing the owner's color is not necessarily changing the subscriber's color.
    Also change a test event to distinguish event sync from metadata sync.
-3. Tap **Refresh events** without opening Google Calendar on Android. Verify
-   the waiting indicator, continued availability of local data and eventual
-   updated event/color. Allow up to 30 seconds for DayRows' bounded wait; Android
-   may deliver data later. Record results separately for event and color.
-4. Repeat via **Settings → Refresh calendars**. Check that selections, local
+3. Tap **Refresh events** without opening Google Calendar on Android. This is a
+   light refresh: verify that it re-reads the local provider, shows no waiting
+   indicator, opens no account chooser and requests no synchronization. Local
+   data stays usable throughout. The refreshed view reflects only what Android
+   has already synchronized.
+4. Repeat via **Settings → Refresh calendars**. This is a hard refresh: the
+   account checklist appears, and one account or several may be selected. Check
+   that selections, local
    labels, row order and provider visibility are preserved. Repeat with two
-   Google accounts; each eligible account should be requested only once.
+   Google accounts; each eligible account should be requested only once, and
+   each account that still needs visibility should get its own turn in Android's
+   account chooser.
 5. Make another remote change and restart/resume DayRows. It should immediately
    read local data without requesting account synchronization or showing a sync
    wait/account chooser. Let Android deliver an ordinary event update and verify

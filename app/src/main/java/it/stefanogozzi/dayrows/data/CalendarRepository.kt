@@ -18,15 +18,21 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 import java.time.*
+import it.stefanogozzi.dayrows.domain.SyncAccountChoice
 import it.stefanogozzi.dayrows.domain.instanceQueryBounds
 
 interface CalendarRepository {
     val changes: Flow<Unit>
     suspend fun calendars(): List<DeviceCalendar>
     suspend fun instances(ids: Set<Long>, start: LocalDate, endExclusive: LocalDate, zone: ZoneId): List<EventInstance>
+    /** The provider's account name/type pairs, each flagged with whether DayRows already
+     * holds account visibility for it. */
+    suspend fun syncAccounts(): List<SyncAccountChoice>
     /** Requests account synchronization and suspends until observed activity ends or a timeout.
      * FINISHED means activity ended, not that a remote download succeeded. */
     suspend fun requestSync(manual: Boolean = true): CalendarSyncResult
+    /** Requests synchronization for the given accounts only. */
+    suspend fun requestSync(accounts: List<Pair<String, String>>, manual: Boolean = true): CalendarSyncResult
 }
 
 /** This class never inserts, updates or deletes provider data; [requestSync] only asks the owning account
@@ -101,6 +107,16 @@ class AndroidCalendarRepository(private val resolver: ContentResolver,
         result
     }
 
+    override suspend fun syncAccounts(): List<SyncAccountChoice> = withContext(Dispatchers.IO) {
+        // The provider knows which accounts own calendars; AccountManager knows which of
+        // them DayRows may see. A pair is "visible" when the account already appears in
+        // the visibility-filtered account list for its type.
+        readCalendarSyncAccounts(resolver).map { (name, type) ->
+            val visible = accounts.getAccountsByType(type).any { it.name == name }
+            SyncAccountChoice(name, type, visible)
+        }
+    }
+
     private val sync = CalendarSync(object : CalendarSyncAccess {
         override fun enabled(account: SyncAccount): Boolean {
             val adapter = ContentResolver.getSyncAdapterTypes().any {
@@ -140,4 +156,7 @@ class AndroidCalendarRepository(private val resolver: ContentResolver,
         // Android may still restrict sync access; failures remain per account and never prompt sign-in.
         sync.run(readCalendarSyncAccounts(resolver), manual)
     }
+
+    override suspend fun requestSync(accounts: List<Pair<String, String>>, manual: Boolean): CalendarSyncResult =
+        withContext(Dispatchers.IO) { sync.run(accounts, manual) }
 }

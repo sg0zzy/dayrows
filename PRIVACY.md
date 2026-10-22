@@ -46,12 +46,16 @@ allowing edits offer this action.
 
 DayRows also declares the install-time permissions `READ_SYNC_SETTINGS` and
 `READ_SYNC_STATS` to respect disabled account synchronization and observe calendar
-sync activity. When you explicitly press Reload, it may ask the device's existing
-calendar sync adapters to synchronize. Those account apps perform any network
+sync activity. The main page's refresh button only re-reads the data the Calendar
+Provider already holds on the device; it requests no synchronization. The
+Settings refresh button additionally asks you which accounts to synchronize —
+one account or several — and may ask the device's existing calendar sync adapters
+to synchronize. Those account apps perform any network
 transfer under their own permissions and policies. DayRows checks which accounts
 of the calendar account types are visible through AccountManager. If access is
 missing, an optional Android account chooser lets you grant visibility for an
-existing account. This does not grant OAuth tokens or direct Google API access.
+existing account, one account at a time, because only Android can grant that
+access to an app. This does not grant OAuth tokens or direct Google API access.
 The manifest exposes installed sync adapter services to Android's package
 visibility checks; DayRows does not request access to all installed packages.
 DayRows does not obtain OAuth tokens, change sync settings or write calendar data.

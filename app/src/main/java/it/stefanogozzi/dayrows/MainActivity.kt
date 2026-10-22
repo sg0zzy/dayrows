@@ -36,6 +36,7 @@ import androidx.lifecycle.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import it.stefanogozzi.dayrows.data.*
+import it.stefanogozzi.dayrows.domain.SyncAccountChoice
 import it.stefanogozzi.dayrows.domain.isEditable
 import it.stefanogozzi.dayrows.domain.newEventDraft
 import it.stefanogozzi.dayrows.ui.*
@@ -45,6 +46,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
+    /** The mime type both the platform and Google Calendar declare for an insert request. */
+    private companion object { const val EVENT_MIME_TYPE = "vnd.android.cursor.dir/event" }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -65,58 +69,54 @@ class MainActivity : ComponentActivity() {
                 if (allowed) model.refresh()
             }
             var accountAccessInProgress by rememberSaveable { mutableStateOf(false) }
-            var accountCheckInProgress by remember { mutableStateOf(false) }
-            var reloadSettingsAfterAccountChoice by rememberSaveable { mutableStateOf(false) }
+            // The platform account chooser is single-select, so accounts that still need
+            // visibility are granted one after another through this queue.
+            var accountQueue by remember { mutableStateOf<List<SyncAccountChoice>>(emptyList()) }
+            var pendingSyncAccounts by remember { mutableStateOf<List<SyncAccountChoice>>(emptyList()) }
+            var showAccountDialog by remember { mutableStateOf(false) }
             val accountLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                val reloadSettings = reloadSettingsAfterAccountChoice
-                accountAccessInProgress = false
-                reloadSettingsAfterAccountChoice = false
-                if (result.resultCode == RESULT_OK) {
-                    if (reloadSettings) model.discoverCalendars(true) else model.syncNow()
-                } else model.refresh()
-            }
-            fun requestAccountAccess(reloadSettings: Boolean) {
-                if (accountAccessInProgress || accountCheckInProgress) return
-                accountCheckInProgress = true
-                lifecycleScope.launch {
-                    var chooserLaunched = false
-                    try {
-                        val missing = withContext(Dispatchers.IO) {
-                            val manager = AccountManager.get(applicationContext)
-                            readCalendarSyncAccounts(contentResolver).filter { (name, type) ->
-                                manager.getAccountsByType(type).none { it.name == name }
-                            }
-                        }
-                        if (missing.isEmpty()) {
-                            if (reloadSettings) model.discoverCalendars(true) else model.syncNow()
-                        } else {
-                            accountAccessInProgress = true
-                            reloadSettingsAfterAccountChoice = reloadSettings
-                            accountLauncher.launch(AccountManager.newChooseAccountIntent(null,
-                                missing.map { (name, type) -> Account(name, type) },
-                                missing.map { it.second }.distinct().toTypedArray(),
-                                getString(R.string.sync_account_picker_description), null, null, null))
-                            chooserLaunched = true
-                        }
-                    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                    catch (_: ActivityNotFoundException) {
-                        Toast.makeText(this@MainActivity, R.string.sync_account_picker_unavailable, Toast.LENGTH_LONG).show()
-                    } catch (_: SecurityException) {
-                        Toast.makeText(this@MainActivity, R.string.sync_account_picker_unavailable, Toast.LENGTH_LONG).show()
-                    } catch (e: Exception) {
-                        calendarDebug("account access check unavailable: ${e.javaClass.simpleName}")
-                        Toast.makeText(this@MainActivity, R.string.sync_unavailable, Toast.LENGTH_LONG).show()
-                        model.refresh()
-                    } finally {
-                        accountCheckInProgress = false
-                        if (!chooserLaunched) {
-                            accountAccessInProgress = false
-                            reloadSettingsAfterAccountChoice = false
-                        }
-                    }
+                // The chooser returns cancelled when the user backs out, and also when the
+                // account type has no authenticator to show. Either way the remaining
+                // accounts still get their own turn, so one unusable type cannot block
+                // the others.
+                val remaining = accountQueue.drop(1)
+                accountQueue = remaining
+                if (remaining.isEmpty()) {
+                    accountAccessInProgress = false
+                    // Every chosen account has been through the chooser: perform the hard refresh.
+                    model.hardRefresh(pendingSyncAccounts)
+                    pendingSyncAccounts = emptyList()
+                } else {
+                    // A grant changes the account's visibility; reload it for the next dialog.
+                    model.loadSyncAccounts()
                 }
             }
-            val allowAccountSync: () -> Unit = { requestAccountAccess(inSettings) }
+            // Drives the one-account-at-a-time chooser from the queue.
+            LaunchedEffect(accountQueue) {
+                val next = accountQueue.firstOrNull() ?: return@LaunchedEffect
+                try {
+                    accountLauncher.launch(AccountManager.newChooseAccountIntent(null,
+                        listOf(Account(next.name, next.type)),
+                        arrayOf(next.type),
+                        getString(R.string.sync_account_picker_description), null, null, null))
+                } catch (_: ActivityNotFoundException) {
+                    Toast.makeText(this@MainActivity, R.string.sync_account_picker_unavailable, Toast.LENGTH_LONG).show()
+                    accountQueue = accountQueue.drop(1)
+                    if (accountQueue.isEmpty()) accountAccessInProgress = false
+                } catch (_: SecurityException) {
+                    Toast.makeText(this@MainActivity, R.string.sync_account_picker_unavailable, Toast.LENGTH_LONG).show()
+                    accountQueue = accountQueue.drop(1)
+                    if (accountQueue.isEmpty()) accountAccessInProgress = false
+                }
+            }
+            /** A hard refresh first asks which accounts to synchronize. Accounts that are
+             * already visible are used as they are; the others need the platform chooser. */
+            fun requestHardRefresh() {
+                if (accountAccessInProgress) return
+                model.loadSyncAccounts()
+                showAccountDialog = true
+            }
+            val allowAccountSync: () -> Unit = { requestHardRefresh() }
             DisposableEffect(model) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_RESUME) {
@@ -154,10 +154,29 @@ class MainActivity : ComponentActivity() {
                             })
                         inSettings -> SettingsScreen(state, { closeSettings() }, model::select, model::label, model::move,
                             model::refresh, model::discoverCalendars, allowAccountSync,
-                            onReload = { requestAccountAccess(reloadSettings = true) })
+                            onReload = { requestHardRefresh() })
                         else -> CalendarScreen(state, { inSettings = true }, model::days, model::navigate, model::today,
-                            onRefresh = { requestAccountAccess(reloadSettings = false) }, onRetry = model::refresh, onEvent = ::openEvent,
+                            onRefresh = model::refreshLight, onRetry = model::refresh, onEvent = ::openEvent,
                             onAccountAccess = allowAccountSync, onNewEvent = ::openNewEvent, onLabel = model::label)
+                    }
+                    if (showAccountDialog) {
+                        AccountSelectionDialog(
+                            accounts = state.syncAccounts,
+                            onDismiss = { showAccountDialog = false },
+                            onConfirm = { chosen ->
+                                showAccountDialog = false
+                                // Accounts that already have visibility are used straight away;
+                                // the others need the platform chooser, one at a time.
+                                val needing = chosen.filter { !it.visible }
+                                pendingSyncAccounts = chosen
+                                if (needing.isEmpty()) {
+                                    model.hardRefresh(chosen)
+                                    pendingSyncAccounts = emptyList()
+                                } else {
+                                    accountAccessInProgress = true
+                                    accountQueue = needing
+                                }
+                            })
                     }
                 }
             }
@@ -174,14 +193,22 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Hands a pre-filled new event to an installed calendar app. DayRows holds only READ_CALENDAR
-     * and never writes to the provider, so the receiving app performs the insertion itself. */
+     * and never writes to the provider, so the receiving app performs the insertion itself.
+     *
+     * The target calendar is named with the `calendar_id` extra, which is the platform
+     * convention the AOSP calendar app reads. The mime type is the one both the platform
+     * and Google Calendar declare for an insert request, so the same intent reaches
+     * either app. */
     private fun openNewEvent(calendar: DeviceCalendar, date: LocalDate) {
         if (!calendar.isEditable()) {
             Toast.makeText(this, R.string.calendar_not_editable, Toast.LENGTH_LONG).show()
             return
         }
         val draft = newEventDraft(calendar, date, ZoneId.systemDefault())
-        val intent = Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)
+        // setDataAndType keeps both the documented events URI and the mime type; setType alone
+        // would clear the URI.
+        val intent = Intent(Intent.ACTION_INSERT)
+            .setDataAndType(CalendarContract.Events.CONTENT_URI, EVENT_MIME_TYPE)
             .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, draft.startMillis)
             .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, draft.endMillis)
             .putExtra(CalendarContract.Events.CALENDAR_ID, calendar.id)

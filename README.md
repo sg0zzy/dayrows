@@ -52,11 +52,21 @@ calendar access. English and Italian privacy/terms are included in the same file
 Tap an event to open its occurrence in an installed calendar app. Tap an empty
 cell to start a new event on that day in that calendar: DayRows opens the
 calendar app with the day, a one-hour slot and the calendar already filled in.
-Only calendars you can edit show this action; read-only and free/busy calendars
-keep a plain placeholder. Continued
+The + marker sits in the middle of the cell. Only calendars you can edit show
+this action; read-only and free/busy calendars keep a plain placeholder.
+Continued
 entries use ↤ / ↦; `24:00` marks an exclusive midnight end. All-day events use
 the provider’s UTC date semantics. Recurrences come from `CalendarContract.Instances`.
 The device’s current zone determines timed events’ day boundaries, including DST.
+
+The two refresh buttons do different things. **Refresh events** in the main
+toolbar is a light refresh: it re-reads what the Calendar Provider already holds
+on the device, exactly as the first release did. It never requests a
+synchronization, never opens the account chooser and never touches the network.
+**Refresh calendars** in Settings is a hard refresh: it asks which accounts to
+synchronize, using a checklist where you may select one account or several.
+Accounts DayRows cannot see yet are authorized through Android’s own account
+chooser, one at a time, because only the system can grant that access.
 
 ## Development and builds
 
@@ -151,23 +161,33 @@ See [Developer Diagnostics](docs/DEVELOPER_DIAGNOSTICS.md) for the Google Calend
 Reload investigation and extension guide. Release builds exclude the implementation.
 
 - Data freshness depends on the device’s calendar synchronization. The main view’s
-  *Refresh events* button (in portrait and landscape), opening the app, retrying
-  after an error and *Refresh calendars* ask the owning account
-  apps to synchronize now through the platform sync framework; DayRows itself
-  still performs no synchronization and no network request, and the system
-  decides when a requested sync actually runs. Settings re-reads the calendars
+  *Refresh events* button (in portrait and landscape) is a **light refresh**: it
+  re-reads the local CalendarProvider only, exactly as the first release did, and
+  requests no synchronization. Opening the app and retrying after an error read
+  local data as well. Only Settings → *Refresh calendars* is a **hard refresh**:
+  it asks which accounts to synchronize and then asks the owning account apps to
+  synchronize now through the platform sync framework; DayRows itself still
+  performs no synchronization and no network request, and the system decides
+  when a requested sync actually runs. Settings re-reads the calendars
   registered on the device when *Refresh calendars* is tapped or the screen is
   opened, and marks calendars whose synchronization is disabled. A calendar the
   account has not yet synchronized is not registered and appears only after
   that app has synchronized it.
   DayRows waits up to 30 seconds for observed sync activity to finish before
   reloading events and metadata, including colors. Startup/resume only reads
-  local CalendarProvider data; account synchronization is requested by the Reload
-  buttons. Explicit refresh has a ten-second minimum interval.
+  local CalendarProvider data; account synchronization is requested by the
+  hard refresh. Explicit refresh has a ten-second minimum interval.
   Disabled synchronization is respected and
   unavailable/unfinished syncs leave local data usable. If account access is
-  missing, *Allow account synchronization* opens Android’s account chooser for
-  an existing calendar account; repeat for each account. No OAuth is required.
+  missing, the hard refresh opens Android’s account chooser for each selected
+  account; repeat for each account. No OAuth is required.
+- Account access is granted by Android, not by DayRows. Only the system can
+  make an account visible to an app, so the hard refresh uses Android’s own
+  single-account chooser, once per selected account that still needs it. A
+  cancellation, or an account type with no authenticator on the device, skips
+  that account and continues with the others. The system chooser is
+  single-select, which is why DayRows collects the whole selection itself
+  before asking for any authorization.
   Adapter completion does
   not prove that Google's adapter fetched calendar colors. See the device test
   and diagnostic procedure in [calendar synchronization](docs/CALENDAR_SYNC.md).
@@ -187,7 +207,12 @@ Reload investigation and extension guide. Release builds exclude the implementat
   app. The receiving app decides how the pre-filled day, one-hour slot and
   target calendar are presented, and whether it accepts them. DayRows itself
   never writes to the provider, so a calendar app that ignores the pre-filled
-  calendar may insert the event elsewhere.
+  calendar may insert the event elsewhere. The day and the slot arrive in every
+  calendar app, because `beginTime` and `endTime` are read by Google Calendar as
+  well as by Android’s own calendar app. The target calendar is passed as the
+  `calendar_id` intent extra, the platform convention; Google Calendar reads no
+  such extra and chooses its own default calendar instead, so the calendar still
+  has to be confirmed in the receiving app there.
 - This is an early milestone: physical-device and vendor-specific calendar
   provider testing remains necessary. No event editing inside DayRows, search,
   widgets or notifications.

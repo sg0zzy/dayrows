@@ -622,3 +622,60 @@ d99a0ab39b48c56f430e03881b748802385c0a3c3f363351d692abfe1889486a) and reports
 against the published SHA256SUMS.txt. Publishing the GitHub release and the
 manual Play Console upload remain the publisher's decisions and are not claimed
 here.
+
+### Light and hard refresh, and the account checklist (2026-10-23)
+
+The main toolbar's *Refresh events* returns to the first-release behaviour: it
+re-reads the local Calendar Provider only, submits no sync request, opens no
+account chooser and performs no network access. Settings' *Refresh calendars* is
+now the hard refresh: it opens a DayRows checklist where one account or several
+can be selected, then requests synchronization for the chosen accounts only.
+
+Platform constraints were established before implementing, not assumed. Android
+alone can make an account visible to an app: `AccountManager
+.setAccountVisibility` throws `SecurityException` for a third-party app whose
+signature does not match the account type's authenticator, confirmed with a
+probe app on the emulator ("uid 10216 cannot get secrets for accounts of type:
+com.google"). The platform's account chooser is single-select
+(`ListView.CHOICE_MODE_SINGLE` in `ChooseTypeAndAccountActivity`), so the
+checklist is built in DayRows and the system chooser is opened once per
+selected account that still needs visibility. A cancelled chooser, or an account
+type with no authenticator on the device, skips that account and the queue
+continues with the rest.
+
+Verified on the emulator (API 36): the main-page refresh produced provider
+reads and no sync request in the DayRows diagnostics log, while the Settings
+refresh reached the sync stage and reported the account as needing visibility.
+The checklist showed both provider accounts with checkboxes, allowed both to be
+selected, and enabled the confirm action only when at least one was checked. The
+system chooser was launched for the selected account.
+
+The empty-cell `+` marker is now centred in the cell. The new-event intent was
+corrected to carry both the documented `content://com.android.calendar/events`
+URI and the `vnd.android.cursor.dir/event` mime type, because `setType` alone
+clears the URI and the mime type is what lets the same intent reach both the
+platform calendar app and Google Calendar; both declare that mime type for
+`ACTION_INSERT`. Verified with a recorder that the emitted intent carries the
+action, the mime type, the events URI, the one-hour slot and the `calendar_id`
+of the tapped row: the second row produced `calendar_id=3` and the second day
+column produced 24 October 09:00-10:00 local.
+
+Honest limitation, recorded in README and docs/CALENDAR_SYNC.md: the
+`calendar_id` extra is the platform convention and is read by Android's own
+calendar app, but Google Calendar reads no such extra and selects its own
+default calendar, so the calendar still has to be confirmed in the receiving app
+there. DayRows does not claim a preselected calendar everywhere.
+
+That Google Calendar conclusion was then re-established from **dex bytecode
+disassembly** (`dexdump -d` on the APK pulled from the test device) rather than
+from string proximity, because the dex string pool is ordered by first use and
+proximity is not evidence of use. The disassembly shows Google Calendar's intent
+handler reading exactly `beginTime`, `endTime`, `allDay`, `title`, `description`,
+`eventLocation`, `eventTimezone`, `rrule`, `accessLevel`, `availability`,
+`android.intent.extra.TITLE/TEXT/TIME/EMAIL` and never `calendar_id`; every
+`calendar_id` occurrence in the dex is a provider column. The same disassembly
+shows the only calendar-selection channel is `Uri.getQueryParameter("cid")` on a
+Google Calendar event-template URL, which needs a `VIEW` intent and therefore
+cannot be combined with the `ACTION_INSERT` the platform's insert contract
+defines. It also confirmed that `endTime` **is** read, so the day and the
+one-hour slot reach Google Calendar correctly even though the calendar does not.
