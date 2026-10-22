@@ -554,7 +554,7 @@ receipt can have verified attachments reconciled; a live release without receipt
 fails for manual investigation. Receipts are retained as Actions artifacts for
 90 days, not claimed as a durable full-history/version-code ledger.
 
-Verified the exact pinned standards. 80 infrastructure tests passed, including
+Verified the exact pinned standards. 83 infrastructure tests passed, including
 mocked upload, symbol/mapping acknowledgement, conflicting/downgrade/duplicate
 delivery, existing track preservation, lost commit response and receipt trust.
 Actionlint 1.7.12 passed (download digest verified against upstream release
@@ -564,3 +564,11 @@ The real v0.1.3 preparation path passed release checksums, AAB identity/versionC
 Play. Actual service-account authentication, store acceptance, review and rollout
 remain untested until the publisher configures credentials and dispatches upload.
 Historical release-code/signing inventory and local settings recovery gaps remain.
+
+The initial GitHub dry run (39826742612) found that the read-only workflow token
+cannot see draft-release assets. Keep that token read-only: the fallback consumes
+only `<tag>-release` from the exact successful release workflow at the tag SHA,
+then applies all checksum/signature/identity gates. The receipt records its
+artifact source and run ID. No rebuild or credential broadening occurs; expired
+draft artifacts require publishing the original GitHub draft. Regression tests
+cover exact-tag selection, fallback bytes and expired-artifact failure.

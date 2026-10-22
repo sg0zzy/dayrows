@@ -3,6 +3,7 @@
 import copy
 import io
 import json
+import shutil
 from pathlib import Path
 import sys
 import tempfile
@@ -255,6 +256,53 @@ class PlayUploadTest(unittest.TestCase):
                 play.upload(self.directory, api)
         self.assertEqual('failed', self.state()['status'])
         self.assertFalse(any(':commit' in call[1] for call in api.calls))
+
+    def test_unreadable_draft_uses_only_exact_successful_release_run_artifact(self):
+        apk = 'DayRows-0.1.3-android-universal-release.apk'
+        (self.directory / apk).write_bytes(b'apk')
+        hashes = {name: play.sha256_file(str(self.directory / name))
+                  for name in [*self.record['files'].values(), apk]}
+        (self.directory / 'SHA256SUMS.txt').write_text(''.join(f'{value}  {name}\n' for name, value in hashes.items()))
+        destination = self.directory / 'downloaded'
+        replies = [{'object': {'type': 'tag'}},
+                   {'workflow_runs': [{'id': 123, 'head_sha': 'a' * 40, 'head_branch': 'v0.1.3'}]},
+                   play.UploadError('draft hidden')]
+        def download(command, **kwargs):
+            self.assertEqual(['gh', 'run', 'download', '123'], command[:4])
+            self.assertIn('v0.1.3-release', command)
+            for name in [*hashes, 'SHA256SUMS.txt']:
+                shutil.copy(self.directory / name, destination / name)
+            return SimpleNamespace(returncode=0)
+        with patch.object(play, 'gh', side_effect=replies), \
+                patch.object(play, 'remote_tag_sha', return_value='a' * 40), \
+                patch.object(play.subprocess, 'run', side_effect=download), \
+                patch.object(play, 'aab_identity', return_value={'package': play.PACKAGE, 'version_name': '0.1.3', 'version_code': '4'}), \
+                patch.object(play, 'verify_aab_signature', return_value='expected'), \
+                patch.object(play, 'check_symbols'), patch.object(play, 'previous_receipt', return_value=None):
+            result = play.prepare('sg0zzy/dayrows', 'v0.1.3', 'internal', destination, 'expected')
+        self.assertEqual('release-workflow-artifact', result['artifact_source'])
+        self.assertEqual(123, result['release_run_id'])
+        self.assertEqual(self.record['sha256'], result['sha256'])
+
+    def test_other_tag_build_cannot_supply_the_artifact_fallback(self):
+        replies = [{'object': {'type': 'tag'}},
+                   {'workflow_runs': [{'id': 123, 'head_sha': 'a' * 40, 'head_branch': 'v0.1.2'}]}]
+        with patch.object(play, 'gh', side_effect=replies), \
+                patch.object(play, 'remote_tag_sha', return_value='a' * 40), \
+                patch.object(play.subprocess, 'run') as download:
+            with self.assertRaisesRegex(play.UploadError, 'No successful'):
+                play.prepare('sg0zzy/dayrows', 'v0.1.3', 'internal', self.directory, 'expected')
+            download.assert_not_called()
+
+    def test_expired_draft_artifact_fails_without_rebuilding_or_broadening_token(self):
+        replies = [{'object': {'type': 'tag'}},
+                   {'workflow_runs': [{'id': 123, 'head_sha': 'a' * 40, 'head_branch': 'v0.1.3'}]},
+                   play.UploadError('draft hidden')]
+        with patch.object(play, 'gh', side_effect=replies), \
+                patch.object(play, 'remote_tag_sha', return_value='a' * 40), \
+                patch.object(play.subprocess, 'run', return_value=SimpleNamespace(returncode=1)):
+            with self.assertRaisesRegex(play.UploadError, 'publish the GitHub draft'):
+                play.prepare('sg0zzy/dayrows', 'v0.1.3', 'internal', self.directory, 'expected')
 
 
 if __name__ == '__main__':

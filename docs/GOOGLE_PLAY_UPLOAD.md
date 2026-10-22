@@ -62,8 +62,13 @@ A dry run downloads release files, verifies all four release hashes, checks the
 AAB package/version/code/signer and verifies native symbols against the bundle.
 It neither authenticates to Google nor contacts Google Play. The selected tag must
 be annotated and have a successful `release.yml` run at its exact source SHA.
-Files are read from GitHub release assets; temporary Actions build artifacts are
-not required and APK/AAB/symbols/mapping are never rebuilt for delivery.
+Published release assets are preferred. GitHub's read-only workflow token cannot
+read draft release assets, so for drafts the uploader downloads only the named
+`<tag>-release` artifact from that exact successful Stable Release run. Those
+artifacts expire after 14 days; after expiry, publish the GitHub draft to make its
+original release assets readable. Both paths verify the same full checksums and
+upload signer. The receipt records the selected source and release run ID.
+APK/AAB/symbols/mapping are never rebuilt for delivery.
 
 Run again with `dry_run=false` to perform the upload:
 

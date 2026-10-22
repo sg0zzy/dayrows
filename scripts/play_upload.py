@@ -99,27 +99,37 @@ def prepare(repo, tag, track, directory, expected_signer):
         raise UploadError('Google Play delivery requires an annotated release tag')
     source = remote_tag_sha(repo, tag)
     runs = gh('api', f'repos/{repo}/actions/workflows/release.yml/runs?head_sha={source}&event=push&status=success&per_page=100')
-    if not any(run['head_sha'] == source and run['head_branch'] == tag
-               for run in runs.get('workflow_runs', [])):
+    completed = next((run for run in runs.get('workflow_runs', [])
+                      if run['head_sha'] == source and run['head_branch'] == tag), None)
+    if not completed:
         raise UploadError('No successful Stable Release workflow exists for this exact tag/commit')
-    release = gh('release', 'view', tag, '--repo', repo, '--json', 'tagName,assets')
     names = filenames(version)
     required = {*names.values(), 'SHA256SUMS.txt'}
-    if release['tagName'] != tag or not required <= {asset['name'] for asset in release['assets']}:
-        raise UploadError('Release is missing its AAB, symbols, mapping or checksums')
     directory.mkdir(parents=True, exist_ok=True)
-    for name in sorted(required):
-        result = subprocess.run(['gh', 'release', 'download', tag, '--repo', repo,
-                                 '--pattern', name, '--dir', str(directory)], capture_output=True)
+    try:
+        release = gh('release', 'view', tag, '--repo', repo, '--json', 'tagName,assets')
+    except UploadError:
+        # GitHub hides draft releases from the read-only workflow token. Consume
+        # only the already verified artifact from this exact successful tagged run.
+        # Never broaden the token or rebuild delivery bytes to work around this.
+        artifact_source = 'release-workflow-artifact'
+        result = subprocess.run(['gh', 'run', 'download', str(completed['id']), '--repo', repo,
+                                 '--name', tag + '-release', '--dir', str(directory)], capture_output=True)
         if result.returncode:
-            raise UploadError(f'Cannot download release asset {name}')
+            raise UploadError('Release assets are not readable and its verified workflow artifact is unavailable; '
+                              'publish the GitHub draft or restore the original verified artifacts')
+    else:
+        artifact_source = 'github-release-assets'
+        if release['tagName'] != tag or not required <= {asset['name'] for asset in release['assets']}:
+            raise UploadError('Release is missing its AAB, symbols, mapping or checksums')
+        for name in sorted(required | {f'DayRows-{version}-android-universal-release.apk'}):
+            result = subprocess.run(['gh', 'release', 'download', tag, '--repo', repo,
+                                     '--pattern', name, '--dir', str(directory)], capture_output=True)
+            if result.returncode:
+                raise UploadError(f'Cannot download release asset {name}')
     # The checksum file also names the APK, which is not delivered to Google Play.
     # Verify all declared bytes with the existing strict gate, then retain only the delivery inputs.
     apk = f'DayRows-{version}-android-universal-release.apk'
-    result = subprocess.run(['gh', 'release', 'download', tag, '--repo', repo,
-                             '--pattern', apk, '--dir', str(directory)], capture_output=True)
-    if result.returncode:
-        raise UploadError('Cannot download APK for complete release checksum verification')
     checksum_names = [line.partition('  ')[2] for line in
                       (directory / 'SHA256SUMS.txt').read_text().splitlines() if line.strip()]
     if set(checksum_names) != {*names.values(), apk} or len(checksum_names) != 4:
@@ -136,6 +146,7 @@ def prepare(repo, tag, track, directory, expected_signer):
     record = dict(destination='google-play', package=PACKAGE, tag=tag, track=track,
                   version_code=code, source_sha=source, sha256=hashes, files=names,
                   signer_sha256=signer, status='prepared', edit_id=None,
+                  artifact_source=artifact_source, release_run_id=completed['id'],
                   run_url=os.environ.get('GITHUB_SERVER_URL', 'https://github.com') + '/' + repo +
                   '/actions/runs/' + os.environ.get('GITHUB_RUN_ID', 'local-verification'))
     prior = previous_receipt(repo, tag, track)
