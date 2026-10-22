@@ -28,7 +28,7 @@
         <item quantity="one">%1$d new calendar was added to the list.</item>
         <item quantity="other">%1$d new calendars were added to the list.</item>
     </plurals>
-    <string name="calendar_sync_hint">DayRows lists the calendars that your account apps have registered on this device. If a calendar is missing, make it available in the app that manages it and synchronize that account in your device settings, then refresh.</string>
+    <string name="calendar_sync_hint">DayRows lists the calendars that your account apps have registered on this device. Refreshing asks those apps to synchronize now; the system decides when the sync actually runs. If a calendar is missing, make it available in the app that manages it, then refresh again.</string>
     <string name="source_id">Calendar ID: %1$s</string>
     <string name="not_syncing">Not synchronizing · events may be out of date</string>
     <string name="identity_unavailable">No unique source identity · preferences apply for this session only</string>

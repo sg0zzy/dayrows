@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_RESUME) {
                         granted = hasPermission(); model.permission(granted)
-                        if (granted) model.refresh()
+                        if (granted) model.syncNow()
                     }
                 }
                 lifecycle.addObserver(observer)
@@ -89,8 +89,8 @@ class MainActivity : ComponentActivity() {
                                 startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
                             })
                         inSettings -> SettingsScreen(state, { closeSettings() }, model::select, model::label, model::move,
-                            model::refresh, model::discoverCalendars)
-                        else -> CalendarScreen(state, { inSettings = true }, model::days, model::navigate, model::today, model::refresh, ::openEvent)
+                            model::syncNow, model::discoverCalendars)
+                        else -> CalendarScreen(state, { inSettings = true }, model::days, model::navigate, model::today, model::syncNow, ::openEvent)
                     }
                 }
             }

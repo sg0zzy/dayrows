@@ -28,7 +28,7 @@
         <item quantity="one">Elenco aggiornato con %1$d nuovo calendario.</item>
         <item quantity="other">Elenco aggiornato con %1$d nuovi calendari.</item>
     </plurals>
-    <string name="calendar_sync_hint">DayRows elenca i calendari che le app dei tuoi account hanno registrato sul dispositivo. Se un calendario manca, rendilo disponibile nell’app che lo gestisce e sincronizza l’account nelle impostazioni del dispositivo, poi aggiorna.</string>
+    <string name="calendar_sync_hint">DayRows elenca i calendari che le app dei tuoi account hanno registrato sul dispositivo. L’aggiornamento chiede a queste app di sincronizzarsi subito; il sistema decide quando la sincronizzazione viene eseguita. Se un calendario manca, rendilo disponibile nell’app che lo gestisce, poi aggiorna di nuovo.</string>
     <string name="source_id">ID calendario: %1$s</string>
     <string name="not_syncing">Sincronizzazione disattivata · gli eventi potrebbero non essere aggiornati</string>
     <string name="identity_unavailable">Identità sorgente non univoca · preferenze valide solo per questa sessione</string>

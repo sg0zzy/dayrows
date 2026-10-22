@@ -63,6 +63,13 @@ fun calendarIdentity(account: String?, type: String?, owner: String?, name: Stri
     return listOf(account, type, owner.orEmpty(), source).joinToString("") { "${it.length}:$it" }
 }
 
+/** Accounts to ask for a calendar-provider sync: distinct (name, type) pairs in first-seen order.
+ * Local calendars have no account and therefore no sync adapter to ask. */
+fun syncAccounts(calendars: List<DeviceCalendar>): List<Pair<String, String>> =
+    calendars.mapNotNull { calendar ->
+        calendar.accountName?.let { name -> calendar.accountType?.let { name to it } }
+    }.distinct()
+
 /** Ambiguous identities are usable only while the same observed source remains in this session. */
 class CalendarIdentityResolver {
     private val temporary = mutableMapOf<Long, Pair<List<String?>, String>>()

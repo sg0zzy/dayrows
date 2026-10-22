@@ -132,11 +132,15 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 
 ## Limitations
 
-- Data freshness depends on the device’s calendar synchronization. Settings
-  re-reads the calendars registered on the device when *Refresh calendars* is
-  tapped or the screen is opened, and marks calendars whose synchronization is
-  disabled. A calendar the account has not yet synchronized is not registered
-  and appears only after that app has synchronized it.
+- Data freshness depends on the device’s calendar synchronization. Opening the
+  app, retrying after an error and *Refresh calendars* ask the owning account
+  apps to synchronize now through the platform sync framework; DayRows itself
+  still performs no synchronization and no network request, and the system
+  decides when a requested sync actually runs. Settings re-reads the calendars
+  registered on the device when *Refresh calendars* is tapped or the screen is
+  opened, and marks calendars whose synchronization is disabled. A calendar the
+  account has not yet synchronized is not registered and appears only after
+  that app has synchronized it.
 - Calendar identities use account name/type, owner and remote sync ID, falling
   back to the provider’s internal calendar name. Display labels and numeric IDs
   are not sufficient identities. Preferences survive disappearance/reappearance

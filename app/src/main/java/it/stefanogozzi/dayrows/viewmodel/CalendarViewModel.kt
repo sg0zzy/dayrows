@@ -76,6 +76,16 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
     fun permission(granted: Boolean) { permission.value = granted }
     fun refresh() { refreshes.update { it + 1 } }
 
+    /** Asks every account behind the provider calendars to synchronize now (advisory: the platform
+     * schedules and batches it, DayRows performs no network request itself), then re-queries immediately.
+     * Rows that land later arrive through repository.changes and refresh the interface again. */
+    fun syncNow() {
+        viewModelScope.launch {
+            try { repository.requestSync() } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+        }
+        refresh()
+    }
+
     /** Re-queries the calendar provider and merges every newly accessible calendar into the stored preferences.
      * Selections, labels and the manual order survive; new calendars arrive unchecked. Only an explicit
      * [announce], never the automatic search on entry, reports a count back to the interface. */
@@ -84,6 +94,9 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
         discovery = viewModelScope.launch {
             _state.update { it.copy(searching = true, newCalendars = null) }
             try {
+                // An explicitly tapped search also asks the owning accounts to sync so calendars they
+                // have not registered on the device yet can arrive; the automatic search on entry stays passive.
+                if (announce) try { repository.requestSync() } catch (e: CancellationException) { throw e } catch (_: Exception) { }
                 val previous = baseline ?: state.value.preferences.calendars.map { it.key }.toSet()
                 val discovered = repository.calendars()
                 baseline = discovered.map { it.key }.toSet()

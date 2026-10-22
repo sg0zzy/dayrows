@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package it.stefanogozzi.dayrows.data
 
+import android.accounts.Account
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.database.ContentObserver
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.CalendarContract
@@ -22,9 +24,14 @@ interface CalendarRepository {
     val changes: Flow<Unit>
     suspend fun calendars(): List<DeviceCalendar>
     suspend fun instances(ids: Set<Long>, start: LocalDate, endExclusive: LocalDate, zone: ZoneId): List<EventInstance>
+    /** Asks the account apps that own the readable calendars to run their existing calendar synchronization
+     * now. Advisory: the platform schedules and batches the actual sync and gives no callback; synchronized
+     * rows appear later through [changes]. DayRows itself performs no network request. */
+    suspend fun requestSync()
 }
 
-/** This class never inserts, updates or deletes provider data. */
+/** This class never inserts, updates or deletes provider data; [requestSync] only asks the owning account
+ * apps to run synchronization they already perform on their own schedule. */
 class AndroidCalendarRepository(private val resolver: ContentResolver) : CalendarRepository {
     private val identities = CalendarIdentityResolver()
     override val changes = callbackFlow {
@@ -91,6 +98,20 @@ class AndroidCalendarRepository(private val resolver: ContentResolver) : Calenda
         }
         result
     }
+
+    override suspend fun requestSync() = withContext(Dispatchers.IO) {
+        // Reuse the discovery query so only accounts with readable calendars are contacted. The manual flag
+        // asks the framework to bypass sync backoff; it is honored because the manifest declares
+        // WRITE_SYNC_SETTINGS. Failures are per account: an unsyncable or vanished account must not stop
+        // the remaining requests, and none of them can corrupt provider data.
+        val extras = Bundle().apply { putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true) }
+        var requested = 0
+        syncAccounts(calendars()).forEach { (name, type) ->
+            try { ContentResolver.requestSync(Account(name, type), CalendarContract.AUTHORITY, extras); requested++ }
+            catch (_: Exception) { }
+        }
+        logSync(requested)
+    }
 }
 
 private const val DISCOVERY_TAG = "DayRowsCalendars"
@@ -104,4 +125,10 @@ private fun logDiscovery(calendars: List<DeviceCalendar>) {
         Log.d(DISCOVERY_TAG, "id=${it.id} name=${it.displayName} accountType=${it.accountType} " +
             "accessLevel=${it.accessLevel} visible=${it.visible} syncEvents=${it.syncEvents}")
     }
+}
+
+/** Debug-only sync-request diagnostics, same enable switch as [logDiscovery]. Never logs account names. */
+private fun logSync(requested: Int) {
+    if (!Log.isLoggable(DISCOVERY_TAG, Log.DEBUG)) return
+    Log.d(DISCOVERY_TAG, "calendar sync requested for $requested accounts")
 }
