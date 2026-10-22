@@ -132,8 +132,14 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 
 ## Limitations
 
-- Data freshness depends on the device’s calendar synchronization. Opening the
-  app, retrying after an error and *Refresh calendars* ask the owning account
+Debug builds include **Settings → Developer Diagnostics** for raw CalendarProvider
+snapshots, sync tracing, color/calendar comparisons and redacted clipboard reports.
+See [Developer Diagnostics](docs/DEVELOPER_DIAGNOSTICS.md) for the Google Calendar
+Reload investigation and extension guide. Release builds exclude the implementation.
+
+- Data freshness depends on the device’s calendar synchronization. The main view’s
+  *Refresh events* button (in portrait and landscape), opening the app, retrying
+  after an error and *Refresh calendars* ask the owning account
   apps to synchronize now through the platform sync framework; DayRows itself
   still performs no synchronization and no network request, and the system
   decides when a requested sync actually runs. Settings re-reads the calendars
@@ -141,6 +147,17 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
   opened, and marks calendars whose synchronization is disabled. A calendar the
   account has not yet synchronized is not registered and appears only after
   that app has synchronized it.
+  DayRows waits up to 30 seconds for observed sync activity to finish before
+  reloading events and metadata, including colors. Startup/resume only reads
+  local CalendarProvider data; account synchronization is requested by the Reload
+  buttons. Explicit refresh has a ten-second minimum interval.
+  Disabled synchronization is respected and
+  unavailable/unfinished syncs leave local data usable. If account access is
+  missing, *Allow account synchronization* opens Android’s account chooser for
+  an existing calendar account; repeat for each account. No OAuth is required.
+  Adapter completion does
+  not prove that Google's adapter fetched calendar colors. See the device test
+  and diagnostic procedure in [calendar synchronization](docs/CALENDAR_SYNC.md).
 - Calendar identities use account name/type, owner and remote sync ID, falling
   back to the provider’s internal calendar name. Display labels and numeric IDs
   are not sufficient identities. Preferences survive disappearance/reappearance

@@ -246,3 +246,281 @@ Missing configuration remaining (not exposed, none of it blocks the workflow):
 `vars.DAYROWS_UPLOAD_CERT_SHA256` is still unconfigured, so signer-fingerprint
 pinning is advisory-only until the Play App Signing/upload certificate inventory
 (B3) is complete. Play upload stays manual (B4/B5 publisher steps).
+
+## Main calendar refresh — 2026-10-22
+
+The main calendar toolbar now exposes *Refresh events* in portrait and landscape,
+using the existing `CalendarViewModel.syncNow` account-sync request and provider
+observer. English/Italian feedback explains that updates arrive after the owning
+calendar account syncs; it does not claim that the remote download has completed.
+Resume-time sync requests and settings discovery retain their existing behavior.
+
+The exact standards checkout at `e3111c4e9dc652f833a5f2ba5232c292646e7969`
+passed `python3 scripts/check_standards.py /tmp/dayrows-dev-standards` (20 files).
+Applicable ARCHITECTURE R02/R03/R06/R11 and SECURITY Q02 source review confirms
+native Compose integration, unchanged permissions and preferences, no calendar
+writes or direct network access, and local-only implementation/validation.
+`python3 -m unittest discover -s scripts/tests -v` and
+`./gradlew testDebugUnitTest lintDebug --console=plain` passed. No new dependency,
+identity, version, signing or release changes were made.
+
+Device validation remains pending: edit an event in a shared remote calendar,
+tap the toolbar refresh without opening another calendar app, and verify that
+the account provider downloads it and the observer updates DayRows. Repeat for
+portrait/landscape and offline operation. Platform/provider scheduling can delay
+the result. No end-to-end remote synchronization success is claimed. Existing
+MUST gaps, including settings recovery (R04) and official signing/history and
+release coordination, remain unresolved by this UI change.
+
+## Bounded calendar metadata synchronization — 2026-10-22
+
+The follow-up request covers asynchronous account sync, startup throttling,
+metadata/color reloads, offline fallback and diagnostics. The same immutable
+standards checkout was reverified with `scripts/check_standards.py` (20 files).
+ARCHITECTURE R02/R03/R06/R07/R11 and SECURITY Q02 were applied: native APIs and
+preferences are preserved; DayRows delegates synchronization/conflict handling
+to existing account adapters, does not write provider rows, and does not claim
+sync as backup. Implementation and validation remain local; no publication,
+version, package identity or signing changes are authorized or performed.
+
+The sync coordinator isolates account failures, joins pending/active syncs,
+coalesces overlapping callers, throttles startup/manual attempts, observes
+activity on IO with a 30-second bound, and does not retry or cancel account work.
+The final query reloads both metadata and events; local data remains visible on
+sync/query failures. The existing permission-revocation path still clears the
+calendar view. Only `READ_SYNC_SETTINGS` and `READ_SYNC_STATS` are added;
+`WRITE_SYNC_SETTINGS` is removed by avoiding settings-bypass flags. No account
+enumeration permission, network permission, dependency or OAuth integration is
+added. English/Italian UI and packaged privacy disclosures cover the behavior.
+
+Validation: 40 Android unit tests passed, including eight new virtual-time cases
+for multiple accounts, disabled/restricted accounts, unobservable/offline status,
+pending work, overlap/throttling and cancellation. Android lint passed; the 57
+Python infrastructure tests passed. The managed debug build runs these Android
+checks again and records package/source verification in its `build-info.json`.
+See [the device validation procedure](CALENDAR_SYNC.md) for remote color tests,
+startup/manual/offline/disabled-account cases and opt-in diagnostics. Real Google
+account color propagation and Google Calendar's internal Reload behavior remain
+unverified: adapter activity ending is not proof of metadata download, and a
+timeout is not proof of a provider limitation. No direct REST/private-API
+fallback is introduced. Existing MUST gaps for settings recovery (R04), official
+signing/update history and release coordination remain outside this change.
+
+Follow-up device evidence (22 October): the tester reports color propagation
+only after Google Calendar Reload, even when Google Calendar already displays
+the new color. Read-only package inspection found the newer debug app with
+sync-read permissions granted alongside the older production app. The tested
+variant and DayRows sync outcome still require confirmation; the available
+device log buffer contained no matching sync diagnostics. The color issue
+remains unresolved. No additional permissions, authentication, sync flags or
+provider writes were introduced on this evidence alone. The standards pin
+was verified again (20 files); existing MUST gaps remain unchanged.
+
+## Account and adapter visibility correction — 22 October 2026
+
+The tester confirmed the generic unavailable-sync message. Read-only device
+inspection found READ_CALENDAR, READ_SYNC_SETTINGS and READ_SYNC_STATS already
+granted to the updated debug app. A diagnostic launch reproduced both provider
+accounts being skipped before requestSync, disproving the assumption that the
+color test had necessarily exercised an adapter sync. The inspected AOSP
+ContentService/SyncManager implementations filter sync settings and adapters
+according to account and package visibility; false settings do not alone prove
+the user disabled synchronization.
+
+The correction adds scoped manifest visibility for services handling
+`android.content.SyncAdapter` (no new permission), checks visible accounts with
+AccountManager's API-26+ filtered query, and reports missing account access
+separately. An explicit button opens the native chooser restricted to provider
+accounts with adapters still needing access. It neither opens automatically nor
+selects an account for the user. Successful selection retries through the shared
+sync operation; cancellation leaves local data and preferences intact. Local
+accounts with no adapter are excluded from the chooser. No GET_ACCOUNTS,
+QUERY_ALL_PACKAGES, Google OAuth, network or calendar-write permission is added.
+English/Italian explanations and the packaged privacy policy were updated.
+
+Validation: 42 Android unit tests and lint passed, including two new tests for
+missing account visibility, immediate retry after granting access, and continued
+sync for other visible accounts. The final managed debug build repeats Android
+checks and verifies the package; its build-info.json records source identity.
+The native chooser grant must be made by the tester; remote color propagation
+after that grant remains pending. Neither the earlier skip nor this correction
+establishes that Google Calendar's private Reload behavior is reproducible with
+the public sync API. Existing recovery/signing/history/release MUST gaps remain.
+
+Final local evidence: managed build
+`20261022T125826.149417Z-d1b04a1573014fbba73373947241fd39` succeeded with
+42 Android unit tests, lint and verified debug packaging; 57 infrastructure
+tests passed. `adb install -r` updated the existing debug installation without
+uninstalling or clearing its data. The account chooser was not used to grant
+access on behalf of the tester. End-to-end sync/color validation remains pending
+that explicit account choice. The temporary diagnostic log property was restored
+to its original default after inspection.
+
+## Debug-only Developer Diagnostics — 22 October 2026
+
+User scope: a reusable debug-only diagnostic interface for provider snapshots,
+sync tracing, comparisons and redacted clipboard export, without changing
+production synchronization, versions or Git history. The pinned checkout passed
+`python3 scripts/check_standards.py /tmp/dayrows-dev-standards` (20 files).
+ARCHITECTURE R02/R03/R06/R11 and SECURITY Q02 apply: native Kotlin/Compose,
+existing platform permissions, no telemetry/network integration, local validation
+only, and no publication/signing-key access or replacement.
+
+`src/debug` owns the module registry, raw CalendarProvider probe, bounded session,
+comparison/export logic, UI, English/Italian resources and calendar diagnostic
+logging. Settings is guarded by BuildConfig.DEBUG; release source stubs expose
+no actions and retain no diagnostic metadata. Existing sync behavior is unchanged.
+The raw probe reads metadata only on explicit actions, independently of the app
+repository/preferences, preserves raw nulls/flags, and shows application colors
+captured at query start. Five snapshots and 200 bounded trace messages remain in
+memory. On stop/disposal, diagnostic polling is canceled without canceling the
+owning account adapter. No diagnostic observers, services or retries are added.
+
+Clipboard export uses an allowlist of numeric IDs/colors/flags, changed-field
+names and sanitized status/exception classes. Account names/types, calendar
+names, identities, event contents and exception messages are omitted. Raw names
+are visible only inside the debug interface. Packaged privacy disclosures were
+updated in both languages. Diagnostic logs are disabled in release at the source
+set boundary, independently of system log properties.
+
+Validation: 52 debug unit tests (ten new diagnostics tests), debug lint, 41 release
+unit tests, release lint, release APK/AAB packaging, and 57 Python infrastructure
+tests passed. An existing fake-repository test was moved from shared tests to
+`src/testDebug` because its fixture was already debug-only; its coverage remains.
+Release builds were run with all DAYROWS_RELEASE_* credential variables excluded,
+producing unsigned validation packages, not official releases. Actual APK/AAB
+DEX/resource checks found no diagnostic module/session/probe classes, diagnostic
+resources or DayRowsCalendars tag. Unminified release outputs likewise excluded
+the debug modules/fixture; the release logger contains no android.util.Log calls.
+
+See [Developer Diagnostics](DEVELOPER_DIAGNOSTICS.md) for the before/public-sync/
+Google-Reload procedure and module extension instructions. Google metadata
+propagation remains an unverified device investigation, not a claimed fix.
+Existing MUST gaps for settings recovery (R04), official identity/signing/history
+and release coordination remain unresolved. No version bump, commit or tag was
+created and no production synchronization policy was changed.
+
+## Debug request delivery audit — 22 October 2026
+
+User scope: investigate absent SyncManager history, instrument the diagnostic
+request path and document exact ADB verification, preserving production sync and
+release behavior. The immutable standards checkout passed the repository checker
+(20 files at the adopted pin). All implementation/test/resource changes for this
+follow-up are under `src/debug` or `src/testDebug`; no main/release synchronization
+code, manifest permissions, version fields or Git history were changed.
+
+Before editing, inspection verified the diagnostic button → snapshot → probe →
+coordinator → `ContentResolver.requestSync(Account(name, type),
+CalendarContract.AUTHORITY, extras)` path. Eligibility/throttle/join gates can
+prevent the actual call. Only the existing public expedited extra is sent;
+SYNC_EXTRAS_MANUAL is absent, so inspected AOSP source classifies the request as
+OTHER rather than USER. ContentService can silently return for account/authority
+access restrictions; a void return cannot establish scheduler receipt.
+
+Connected Pixel evidence: Android 17 / SDK 37; the three declared calendar/sync
+read permissions were granted. Available content history contained 84 USER and
+7 FEED calendar rows, no OTHER calendar row and no row at 16:55; no DayRows Debug
+package attribution appeared. This substantiates the reported absence without
+claiming a particular rejection cause. No raw account names/URLs were emitted in
+inspection results. The instrumented debug APK was installed with `adb install
+-r`, preserving app data. An attempted UI reproduction found keyguard showing,
+input restricted, and the phone dozing; no diagnostic button press or API call
+was claimed from that attempt. An unlocked-device reproduction remains pending.
+
+The new audit separates handler entry, target/preflight/settings checks, exact
+API enter/return/throw boundaries, changed pending/active observations and
+activity ending. Run IDs, package/UID/PID, device/target SDK, standard authority,
+provider row IDs, Google-type equality, exact visible account matches, permissions
+and actual Boolean extras are logged. Account names/custom types and exception
+messages are excluded; failures retain bounded stack locations, cause classes
+and allowlisted permission mentions. The bounded journal is mirrored to the
+debug-only DayRowsSync Logcat tag without changing system properties. Existing
+work, skipped requests, unknown delivery, timeout and remote-success uncertainty
+are stated explicitly; no undocumented extras or new authentication is introduced.
+
+Validation: 60 debug unit tests (eight new audit regressions), debug lint and
+managed debug packaging passed; 41 release tests, release lint and unsigned
+release APK/AAB packaging passed; 57 Python infrastructure tests passed. Release
+DEX was unchanged from the prior validated release and excluded the new audit
+class/tag/API marker. The native public request is tested through the audit
+closure boundary; actual Pixel execution requires the foreground/unlocked test
+in [the request audit guide](SYNC_REQUEST_AUDIT.md). Source/public API inspection
+does not substitute for system-side pending/history evidence.
+
+ARCHITECTURE R06 privacy and SECURITY Q02 local authority remain satisfied within
+this work's scope. Existing MUST gaps for settings recovery, official signing
+and history, and release coordination remain unresolved. No version bump,
+commit, tag, production signing credential access or publication was performed.
+
+### Calendar account/adapter visibility recovery (2026-10-22)
+
+The supplied 17:26 trace establishes zero public sync calls: both provider-derived
+Google accounts were invisible, and adapter discovery returned zero matches.
+The before/after dumps show no calendar execution in that interval. Account-access
+recovery now precedes adapter rejection; the native chooser no longer depends on
+adapter discovery, and debug diagnostics expose the same user-driven recovery.
+Add only a scoped Google Calendar package-visibility query alongside the generic
+SyncAdapter query. Permissions, extras, user sync settings and preferences remain
+unchanged. See [request audit](SYNC_REQUEST_AUDIT.md) for the reproduction and
+remaining distinction between API return, scheduled work and metadata retrieval.
+
+Verified the exact central pin with `check_standards.py`. Managed debug packaging,
+62 debug tests and debug lint passed; 42 release tests, release lint and unsigned
+release APK packaging passed; 57 infrastructure tests passed. Release DEX contains
+none of the diagnostic module/audit/log markers. Installed the archived debug APK
+with `adb install -r`; the device package dump confirms the explicit visibility
+query. The Pixel is locked, so account selection, adapter visibility after the
+update, system scheduling and remote color/new-calendar retrieval remain device
+validation steps. No version bump or commit. Previously recorded MUST gaps remain.
+
+### Settings Reload and native account authorization (2026-10-22)
+
+Following successful device synchronization from diagnostics, Settings Reload now
+checks raw CalendarProvider accounts on IO and opens Android's native chooser
+when account access is missing. Successful selection continues the explicit sync
+and discovery; cancellation refreshes only local data. Multiple accounts retain
+the existing select-one/repeat recovery, with no automatic prompt/retry loop.
+Guard concurrent chooser launches and suppress resume sync during authorization.
+Normal synchronization now discovers accounts from the same unfiltered provider
+rows as diagnostics; both share one extras builder and public request-submission
+function. No permission, flag, identity, version or preference-format change.
+
+Exact pinned standards verified. Managed debug packaging, 62 debug tests and debug
+lint passed; 42 release tests, release lint and unsigned release APK packaging
+passed; 57 infrastructure tests passed. Diagnostic probe/audit/log markers remain
+absent from release DEX. Installed the final archived debug update with
+`adb install -r`; Settings-button and chooser interaction are left for the user's
+requested real-device test. No commits or publication. Previously recorded MUST
+gaps remain unresolved.
+
+### Explicit Reload only; lightweight startup/resume (2026-10-22)
+
+At the user's request, opening/resuming DayRows and granting calendar permission
+now refresh only local CalendarProvider data. Removed the ViewModel startup-sync
+entry point; automatic lifecycle callbacks and error Retry no longer request
+account synchronization. Provider notifications retain ordinary event updates.
+Both main-page and Settings Reload explicitly request the existing bounded sync
+and offer native account authorization when needed. Diagnostics keep their
+explicit Request Sync action. No new flags, permissions, version or preference
+changes. Updated EN/IT privacy and diagnostic text and current behavior/test docs.
+
+Verified the exact central pin. Managed debug build, 62 debug tests and debug lint
+passed; 42 release tests, release lint and unsigned release APK packaging passed;
+57 infrastructure tests passed. Source call-path inspection confirms that startup
+contains no account-sync call. Installed the final archived debug update with
+`adb install -r`; lifecycle/Reload interaction remains the user's device test.
+No version bump, commits or publication; previously recorded MUST gaps remain.
+
+### Authorized development bump and source push (2026-10-22)
+
+The user explicitly requested a bump, commit and push of this calendar sync and
+debug diagnostics work. Advance the authoritative VERSION from 0.1.2 to 0.1.3
+(existing Android core mapping: versionCode 4), without changing package IDs or
+signers. This is a source/development bump and branch push, not a stable tag,
+official signing or release-publication operation.
+
+Verified the pinned standards and remote main baseline before preparation.
+Managed 0.1.3 debug packaging, 62 debug tests and debug lint passed; 42 release
+tests, release lint and unsigned release APK/AAB packaging passed; 57 infrastructure
+tests passed. Release APK excludes diagnostic log/probe/audit markers. Existing
+settings recovery and official release-history/signing gaps remain unresolved.

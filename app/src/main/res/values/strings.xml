@@ -22,6 +22,7 @@
     <string name="settings_intro">Choose calendars, add local labels, and arrange your rows. Hold a handle to drag, or use the arrows. Changes save automatically and only affect DayRows.</string>
     <string name="no_available_calendars">No readable calendars are available. Add or synchronize a calendar in your device settings, then return here.</string>
     <string name="refresh_calendars">Refresh calendars</string>
+    <string name="refresh_events">Refresh events</string>
     <string name="searching_calendars">Searching for calendars…</string>
     <string name="no_new_calendars">No new calendars were found.</string>
     <plurals name="new_calendars_found">
@@ -48,4 +49,13 @@
     <string name="legal_loading">Loading document…</string>
     <string name="legal_load_error">This document could not be opened. Please close and try again.</string>
     <string name="legal_notice">© 2026 DayRows contributors. Free software under GPL-3.0-or-later. No warranty, to the extent permitted by law.</string>
+    <string name="sync_in_progress">Waiting for calendar synchronization… Local data remains available.</string>
+    <string name="sync_throttled">A sync was requested recently. Showing local data; please wait before trying again.</string>
+    <string name="sync_finished">Calendar sync activity finished. Showing the data available on this device.</string>
+    <string name="sync_timed_out">Sync completion could not be confirmed within 30 seconds. Showing local data; later updates appear automatically.</string>
+    <string name="sync_unavailable">Some calendars could not be synchronized. Check account sync settings and permissions. Showing locally available data.</string>
+    <string name="sync_account_access_required">Allow DayRows to access your calendar accounts to request synchronization. Existing calendars remain readable. Repeat for each account you want to sync.</string>
+    <string name="allow_account_sync">Allow account synchronization</string>
+    <string name="sync_account_picker_description">Choose an existing calendar account to allow DayRows to request synchronization. No Google sign-in or OAuth authorization is required.</string>
+    <string name="sync_account_picker_unavailable">The Android account chooser is unavailable. Locally stored calendars remain readable.</string>
 </resources>

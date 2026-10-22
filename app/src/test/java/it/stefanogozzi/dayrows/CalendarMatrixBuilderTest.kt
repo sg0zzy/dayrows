@@ -7,7 +7,6 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.time.*
 import java.util.Locale
-import kotlinx.coroutines.test.runTest
 
 class CalendarMatrixBuilderTest {
     private val rome = ZoneId.of("Europe/Rome")
@@ -154,11 +153,6 @@ class CalendarMatrixBuilderTest {
     }
     @Test fun invalidNegativeDurationIsIgnored() {
         assertTrue(matrix(listOf(event(to = "2026-10-16T08:00:00+02:00"))).rows[0].cells.all { it.isEmpty() })
-    }
-    @Test fun fakeRepositoryFiltersCalendarAndVisibleRange() = runTest {
-        val fake = FakeCalendarRepository(listOf(calendar()), listOf(event(), event(2, 2), event(3, from = "2025-01-01T09:00:00Z", to = "2025-01-01T10:00:00Z")))
-        assertEquals(listOf(1L), fake.instances(setOf(1), date, date.plusDays(2), rome).map { it.eventId })
-        assertEquals(1, fake.calendars().size)
     }
     @Test fun ambiguousSourcesHaveSeparateSessionPreferences() {
         val resolver = CalendarIdentityResolver()

@@ -21,7 +21,8 @@ class CalendarSyncAccountsTest {
     }
 
     @Test fun calendarsWithoutCompleteAccountAreSkipped() {
-        val calendars = listOf(calendar(1, null, "local"), calendar(2, "named", null), calendar(3, "a@b.test", "t"))
+        val calendars = listOf(calendar(1, null, "local"), calendar(2, "named", null), calendar(3, "a@b.test", "t"),
+            calendar(4, "", "com.google"), calendar(5, "named", " "))
         assertEquals(listOf("a@b.test" to "t"), syncAccounts(calendars))
     }
 

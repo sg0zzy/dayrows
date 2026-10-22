@@ -2,6 +2,11 @@
 package it.stefanogozzi.dayrows
 
 import android.Manifest
+import android.accounts.Account
+import android.accounts.AccountManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.content.*
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -43,7 +48,8 @@ class MainActivity : ComponentActivity() {
             val model: CalendarViewModel = viewModel(factory = object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T = CalendarViewModel(
-                    AndroidCalendarRepository(contentResolver), PreferencesRepository(applicationContext)) as T
+                    AndroidCalendarRepository(contentResolver, AccountManager.get(applicationContext)),
+                    PreferencesRepository(applicationContext)) as T
             })
             val state by model.state.collectAsStateWithLifecycle()
             var granted by remember { mutableStateOf(hasPermission()) }
@@ -52,12 +58,66 @@ class MainActivity : ComponentActivity() {
             var autoOpened by rememberSaveable { mutableStateOf(false) }
             val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed ->
                 granted = allowed; model.permission(allowed)
+                if (allowed) model.refresh()
             }
+            var accountAccessInProgress by rememberSaveable { mutableStateOf(false) }
+            var accountCheckInProgress by remember { mutableStateOf(false) }
+            var reloadSettingsAfterAccountChoice by rememberSaveable { mutableStateOf(false) }
+            val accountLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                val reloadSettings = reloadSettingsAfterAccountChoice
+                accountAccessInProgress = false
+                reloadSettingsAfterAccountChoice = false
+                if (result.resultCode == RESULT_OK) {
+                    if (reloadSettings) model.discoverCalendars(true) else model.syncNow()
+                } else model.refresh()
+            }
+            fun requestAccountAccess(reloadSettings: Boolean) {
+                if (accountAccessInProgress || accountCheckInProgress) return
+                accountCheckInProgress = true
+                lifecycleScope.launch {
+                    var chooserLaunched = false
+                    try {
+                        val missing = withContext(Dispatchers.IO) {
+                            val manager = AccountManager.get(applicationContext)
+                            readCalendarSyncAccounts(contentResolver).filter { (name, type) ->
+                                manager.getAccountsByType(type).none { it.name == name }
+                            }
+                        }
+                        if (missing.isEmpty()) {
+                            if (reloadSettings) model.discoverCalendars(true) else model.syncNow()
+                        } else {
+                            accountAccessInProgress = true
+                            reloadSettingsAfterAccountChoice = reloadSettings
+                            accountLauncher.launch(AccountManager.newChooseAccountIntent(null,
+                                missing.map { (name, type) -> Account(name, type) },
+                                missing.map { it.second }.distinct().toTypedArray(),
+                                getString(R.string.sync_account_picker_description), null, null, null))
+                            chooserLaunched = true
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                    catch (_: ActivityNotFoundException) {
+                        Toast.makeText(this@MainActivity, R.string.sync_account_picker_unavailable, Toast.LENGTH_LONG).show()
+                    } catch (_: SecurityException) {
+                        Toast.makeText(this@MainActivity, R.string.sync_account_picker_unavailable, Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) {
+                        calendarDebug("account access check unavailable: ${e.javaClass.simpleName}")
+                        Toast.makeText(this@MainActivity, R.string.sync_unavailable, Toast.LENGTH_LONG).show()
+                        model.refresh()
+                    } finally {
+                        accountCheckInProgress = false
+                        if (!chooserLaunched) {
+                            accountAccessInProgress = false
+                            reloadSettingsAfterAccountChoice = false
+                        }
+                    }
+                }
+            }
+            val allowAccountSync: () -> Unit = { requestAccountAccess(inSettings) }
             DisposableEffect(model) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_RESUME) {
                         granted = hasPermission(); model.permission(granted)
-                        if (granted) model.syncNow()
+                        if (granted) model.refresh()
                     }
                 }
                 lifecycle.addObserver(observer)
@@ -89,8 +149,11 @@ class MainActivity : ComponentActivity() {
                                 startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
                             })
                         inSettings -> SettingsScreen(state, { closeSettings() }, model::select, model::label, model::move,
-                            model::syncNow, model::discoverCalendars)
-                        else -> CalendarScreen(state, { inSettings = true }, model::days, model::navigate, model::today, model::syncNow, ::openEvent)
+                            model::refresh, model::discoverCalendars, allowAccountSync,
+                            onReload = { requestAccountAccess(reloadSettings = true) })
+                        else -> CalendarScreen(state, { inSettings = true }, model::days, model::navigate, model::today,
+                            onRefresh = { requestAccountAccess(reloadSettings = false) }, onRetry = model::refresh, onEvent = ::openEvent,
+                            onAccountAccess = allowAccountSync)
                     }
                 }
             }

@@ -67,7 +67,9 @@ fun calendarIdentity(account: String?, type: String?, owner: String?, name: Stri
  * Local calendars have no account and therefore no sync adapter to ask. */
 fun syncAccounts(calendars: List<DeviceCalendar>): List<Pair<String, String>> =
     calendars.mapNotNull { calendar ->
-        calendar.accountName?.let { name -> calendar.accountType?.let { name to it } }
+        calendar.accountName?.takeIf { it.isNotBlank() }?.let { name ->
+            calendar.accountType?.takeIf { it.isNotBlank() }?.let { name to it }
+        }
     }.distinct()
 
 /** Ambiguous identities are usable only while the same observed source remains in this session. */

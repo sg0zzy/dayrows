@@ -1,6 +1,6 @@
 # DayRows Privacy Policy
 
-Effective date: 16 October 2026. Applies to DayRows 0.1.2 (`it.stefanogozzi.dayrows`).
+Effective date: 22 October 2026. Applies to DayRows 0.1.2 (`it.stefanogozzi.dayrows`).
 
 ## Who provides DayRows
 
@@ -36,6 +36,26 @@ the calendar view will then be unavailable. DayRows never requests
 `INTERNET` permission. AndroidX also declares an app-private signature permission
 for internal broadcast receiver safety; it grants no access to your calendar or
 network.
+
+DayRows also declares the install-time permissions `READ_SYNC_SETTINGS` and
+`READ_SYNC_STATS` to respect disabled account synchronization and observe calendar
+sync activity. When you explicitly press Reload, it may ask the device's existing
+calendar sync adapters to synchronize. Those account apps perform any network
+transfer under their own permissions and policies. DayRows checks which accounts
+of the calendar account types are visible through AccountManager. If access is
+missing, an optional Android account chooser lets you grant visibility for an
+existing account. This does not grant OAuth tokens or direct Google API access.
+The manifest exposes installed sync adapter services to Android's package
+visibility checks; DayRows does not request access to all installed packages.
+DayRows does not obtain OAuth tokens, change sync settings or write calendar data.
+
+Debug builds additionally provide a Developer Diagnostics screen with raw local
+calendar metadata, including account/calendar names, colors and flags. Diagnostic
+snapshots and a bounded trace are held in memory, not saved or uploaded. Copying
+results is optional and exports redacted numeric metadata and status information;
+account names/types, calendar names, event contents and exception messages are
+omitted. Android manages the clipboard after copying. These diagnostic screens,
+actions and calendar diagnostic logging are excluded from release builds.
 
 ## What is stored on your device
 
@@ -105,7 +125,7 @@ above without including private calendar data.
 
 # Informativa sulla privacy di DayRows
 
-Data di efficacia: 16 ottobre 2026. Si applica a DayRows 0.1.2 (`it.stefanogozzi.dayrows`).
+Data di efficacia: 22 ottobre 2026. Si applica a DayRows 0.1.2 (`it.stefanogozzi.dayrows`).
 
 ## Progetto e contatti
 
@@ -138,6 +158,28 @@ calendario non sarà disponibile. DayRows non richiede `WRITE_CALENDAR`, non
 modifica calendari o eventi e non ha il permesso `INTERNET`. Il permesso privato
 a firma dichiarato da AndroidX protegge i ricevitori interni e non concede
 accesso ai calendari o alla rete.
+
+DayRows dichiara inoltre i permessi concessi all'installazione
+`READ_SYNC_SETTINGS` e `READ_SYNC_STATS` per rispettare la sincronizzazione
+disattivata e osservare l'attività degli account calendario. Quando premi
+esplicitamente Aggiorna, può chiedere agli adattatori di sincronizzazione già presenti sul
+dispositivo di sincronizzare. Le app degli account gestiscono la rete con i
+propri permessi e informative. Tramite AccountManager, DayRows verifica quali
+account dei tipi associati ai calendari sono visibili. Se manca l'accesso, un
+selettore account facoltativo di Android permette di concedere la visibilità di
+un account esistente. Non concede token OAuth o accesso diretto alle API Google.
+Il manifest rende visibili i servizi di sincronizzazione installati ai controlli
+di Android; DayRows non richiede accesso a tutti i pacchetti installati. DayRows
+non ottiene token OAuth, non cambia le impostazioni di sincronizzazione e non
+scrive dati nei calendari.
+
+Le build di debug offrono inoltre una schermata Diagnostica sviluppatore con
+metadati locali grezzi, inclusi nomi di account/calendari, colori e indicatori.
+Gli snapshot e una traccia limitata restano in memoria, senza salvataggio o invio.
+La copia è facoltativa ed esporta metadati numerici e informazioni di stato senza
+nomi/tipi degli account, nomi dei calendari, contenuti degli eventi o messaggi
+delle eccezioni. Dopo la copia, Android gestisce gli appunti. Schermate, azioni e
+registrazione diagnostica dei calendari sono escluse dalle build di rilascio.
 
 ## Memorizzazione locale e sicurezza
 

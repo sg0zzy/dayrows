@@ -1,0 +1,23 @@
+<resources>
+    <string name="developer_diagnostics">Diagnostica sviluppatore</string>
+    <string name="diag_calendar_provider">CalendarProvider</string>
+    <string name="diag_explanation">Dati grezzi del dispositivo; nomi e account sono visibili solo qui. La copia esporta risultati senza dati personali. Leggi/Aggiorna acquisiscono uno snapshot senza sincronizzare. Richiedi sincronizzazione acquisisce snapshot prima e dopo un’attesa massima di 30 secondi. La fine dell’attività non conferma un download remoto riuscito. Non vengono letti i contenuti degli eventi. Restano in memoria gli ultimi cinque snapshot e 200 messaggi mentre questa schermata rimane aperta. All’apertura o al ritorno in primo piano, DayRows legge solo i dati locali del provider.</string>
+    <string name="diag_read_provider">Leggi provider</string>
+    <string name="diag_request_sync">Richiedi sincronizzazione</string>
+    <string name="diag_refresh_snapshot">Aggiorna snapshot</string>
+    <string name="diag_compare">Confronta snapshot</string>
+    <string name="diag_stop">Interrompi monitoraggio</string>
+    <string name="diag_baseline">Prima</string>
+    <string name="diag_target">Dopo</string>
+    <string name="diag_changes">Aggiunti: %1$d · Rimossi: %2$d · Modificati: %3$d</string>
+    <string name="diag_copy">Copia risultati senza dati personali</string>
+    <string name="diag_copied">Copiato senza nomi/tipi degli account, nomi dei calendari o contenuti degli eventi.</string>
+    <string name="diag_snapshot_title">Snapshot #%1$d · %2$s · %3$d calendari</string>
+    <string name="diag_trace">Traccia sincronizzazione e lettura (UTC · Logcat: DayRowsSync)</string>
+    <string name="diag_added">Aggiunto</string>
+    <string name="diag_removed">Rimosso</string>
+    <string name="diag_modified">Modificato</string>
+    <string name="diag_row">ID: %1$d\nAccount: %2$s\nTipo: %3$s\nCalendario: %4$s\nVisibile: %5$s · Sincronizza eventi: %6$s\nAccesso: %7$s · Eliminato: %8$s</string>
+    <string name="diag_app_color">Colore DayRows all’inizio della lettura: %1$s</string>
+    <string name="diag_absent">assente dallo stato DayRows</string>
+</resources>

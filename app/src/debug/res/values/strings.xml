@@ -1,0 +1,23 @@
+<resources>
+    <string name="developer_diagnostics">Developer Diagnostics</string>
+    <string name="diag_calendar_provider">CalendarProvider</string>
+    <string name="diag_explanation">Raw device data; names and accounts are visible only here. Copy exports redacted results. Read/Refresh take a snapshot without syncing. Request Sync takes snapshots before and after a bounded 30-second wait. Activity ending does not prove a successful remote download. No event contents are read. The latest five snapshots and 200 trace entries stay in memory while this screen remains open. Opening or resuming DayRows only reads locally available provider data.</string>
+    <string name="diag_read_provider">Read Provider</string>
+    <string name="diag_request_sync">Request Sync</string>
+    <string name="diag_refresh_snapshot">Refresh Snapshot</string>
+    <string name="diag_compare">Compare Snapshots</string>
+    <string name="diag_stop">Stop monitoring</string>
+    <string name="diag_baseline">Before</string>
+    <string name="diag_target">After</string>
+    <string name="diag_changes">Added: %1$d · Removed: %2$d · Modified: %3$d</string>
+    <string name="diag_copy">Copy redacted results</string>
+    <string name="diag_copied">Copied without account names/types, calendar names or event contents.</string>
+    <string name="diag_snapshot_title">Snapshot #%1$d · %2$s · %3$d calendars</string>
+    <string name="diag_trace">Sync and query trace (UTC · Logcat: DayRowsSync)</string>
+    <string name="diag_added">Added</string>
+    <string name="diag_removed">Removed</string>
+    <string name="diag_modified">Modified</string>
+    <string name="diag_row">ID: %1$d\nAccount: %2$s\nType: %3$s\nCalendar: %4$s\nVisible: %5$s · Sync events: %6$s\nAccess: %7$s · Deleted: %8$s</string>
+    <string name="diag_app_color">DayRows color at query start: %1$s</string>
+    <string name="diag_absent">not present in DayRows state</string>
+</resources>

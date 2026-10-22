@@ -2,16 +2,16 @@
 package it.stefanogozzi.dayrows.data
 
 import android.accounts.Account
+import android.accounts.AccountManager
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.database.ContentObserver
-import android.os.Bundle
 import android.os.Handler
+import android.os.SystemClock
 import android.os.Looper
 import android.provider.CalendarContract
 import android.provider.CalendarContract.Calendars as C
 import android.provider.CalendarContract.Instances as I
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -24,16 +24,17 @@ interface CalendarRepository {
     val changes: Flow<Unit>
     suspend fun calendars(): List<DeviceCalendar>
     suspend fun instances(ids: Set<Long>, start: LocalDate, endExclusive: LocalDate, zone: ZoneId): List<EventInstance>
-    /** Asks the account apps that own the readable calendars to run their existing calendar synchronization
-     * now. Advisory: the platform schedules and batches the actual sync and gives no callback; synchronized
-     * rows appear later through [changes]. DayRows itself performs no network request. */
-    suspend fun requestSync()
+    /** Requests account synchronization and suspends until observed activity ends or a timeout.
+     * FINISHED means activity ended, not that a remote download succeeded. */
+    suspend fun requestSync(manual: Boolean = true): CalendarSyncResult
 }
 
 /** This class never inserts, updates or deletes provider data; [requestSync] only asks the owning account
  * apps to run synchronization they already perform on their own schedule. */
-class AndroidCalendarRepository(private val resolver: ContentResolver) : CalendarRepository {
+class AndroidCalendarRepository(private val resolver: ContentResolver,
+                                private val accounts: AccountManager) : CalendarRepository {
     private val identities = CalendarIdentityResolver()
+    private val metadataDiagnostics = CalendarMetadataDiagnostics()
     override val changes = callbackFlow {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) { trySend(Unit) }
@@ -69,8 +70,9 @@ class AndroidCalendarRepository(private val resolver: ContentResolver) : Calenda
                     value(C.SYNC_EVENTS) == "1", identity != null)
             }
         }
-        logDiscovery(result)
-        identities.resolve(result)
+        val fresh = identities.resolve(result)
+        metadataDiagnostics.record(fresh)
+        fresh
     }
 
     override suspend fun instances(ids: Set<Long>, start: LocalDate, endExclusive: LocalDate, zone: ZoneId): List<EventInstance> = withContext(Dispatchers.IO) {
@@ -99,36 +101,43 @@ class AndroidCalendarRepository(private val resolver: ContentResolver) : Calenda
         result
     }
 
-    override suspend fun requestSync() = withContext(Dispatchers.IO) {
-        // Reuse the discovery query so only accounts with readable calendars are contacted. The manual flag
-        // asks the framework to bypass sync backoff; it is honored because the manifest declares
-        // WRITE_SYNC_SETTINGS. Failures are per account: an unsyncable or vanished account must not stop
-        // the remaining requests, and none of them can corrupt provider data.
-        val extras = Bundle().apply { putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true) }
-        var requested = 0
-        syncAccounts(calendars()).forEach { (name, type) ->
-            try { ContentResolver.requestSync(Account(name, type), CalendarContract.AUTHORITY, extras); requested++ }
-            catch (_: Exception) { }
+    private val sync = CalendarSync(object : CalendarSyncAccess {
+        override fun enabled(account: SyncAccount): Boolean {
+            val adapter = ContentResolver.getSyncAdapterTypes().any {
+                it.authority == CalendarContract.AUTHORITY && it.accountType == account.second
+            }
+            // Account recovery must remain available even when adapter discovery is filtered.
+            val visible = accounts.getAccountsByType(account.second).any { it.name == account.first }
+            if (!calendarSyncAccountAccessible(visible, adapter)) {
+                calendarDebug("sync eligibility: adapter=false")
+                return false
+            }
+            // READ_CALENDAR does not make source accounts visible to the sync framework.
+            // Without visibility, settings APIs can return false/0 instead of throwing.
+            // API 26+ permits this visibility-filtered query without GET_ACCOUNTS.
+            val master = ContentResolver.getMasterSyncAutomatically()
+            val automatic = ContentResolver.getSyncAutomatically(Account(account.first, account.second), CalendarContract.AUTHORITY)
+            val syncable = ContentResolver.getIsSyncable(Account(account.first, account.second), CalendarContract.AUTHORITY)
+            calendarDebug("sync eligibility: master=$master automatic=$automatic syncable=$syncable adapter=$adapter")
+            return master && automatic && syncable != 0 && adapter
         }
-        logSync(requested)
+
+        override fun activity(account: SyncAccount): SyncActivity {
+            val owner = Account(account.first, account.second)
+            return SyncActivity(ContentResolver.isSyncActive(owner, CalendarContract.AUTHORITY),
+                ContentResolver.isSyncPending(owner, CalendarContract.AUTHORITY))
+        }
+
+        override fun request(account: SyncAccount, manual: Boolean) {
+            // Expedite a user request without bypassing disabled sync settings or backoff.
+            // No WRITE_SYNC_SETTINGS, AccountManager enumeration or OAuth is required.
+            submitCalendarSync(Account(account.first, account.second), calendarSyncExtras(manual))
+        }
+    }, SystemClock::elapsedRealtime, ::calendarDebug)
+
+    override suspend fun requestSync(manual: Boolean): CalendarSyncResult = withContext(Dispatchers.IO) {
+        // Provider-derived accounts include shared/secondary calendars across all readable accounts.
+        // Android may still restrict sync access; failures remain per account and never prompt sign-in.
+        sync.run(readCalendarSyncAccounts(resolver), manual)
     }
-}
-
-private const val DISCOVERY_TAG = "DayRowsCalendars"
-
-/** Debug-only discovery diagnostics, enabled with `adb shell setprop log.tag.DayRowsCalendars DEBUG`.
- * Never logs account names, owner accounts or provider sync IDs. */
-private fun logDiscovery(calendars: List<DeviceCalendar>) {
-    if (!Log.isLoggable(DISCOVERY_TAG, Log.DEBUG)) return
-    Log.d(DISCOVERY_TAG, "calendar discovery: ${calendars.size} provider calendars")
-    calendars.forEach {
-        Log.d(DISCOVERY_TAG, "id=${it.id} name=${it.displayName} accountType=${it.accountType} " +
-            "accessLevel=${it.accessLevel} visible=${it.visible} syncEvents=${it.syncEvents}")
-    }
-}
-
-/** Debug-only sync-request diagnostics, same enable switch as [logDiscovery]. Never logs account names. */
-private fun logSync(requested: Int) {
-    if (!Log.isLoggable(DISCOVERY_TAG, Log.DEBUG)) return
-    Log.d(DISCOVERY_TAG, "calendar sync requested for $requested accounts")
 }

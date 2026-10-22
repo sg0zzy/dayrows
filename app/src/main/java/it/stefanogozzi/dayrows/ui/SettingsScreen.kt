@@ -23,13 +23,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import it.stefanogozzi.dayrows.R
+import it.stefanogozzi.dayrows.BuildConfig
+import it.stefanogozzi.dayrows.diagnostics.DeveloperDiagnosticsEntry
 import it.stefanogozzi.dayrows.viewmodel.CalendarUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(state: CalendarUiState, onBack: () -> Unit, onSelect: (String, Boolean) -> Unit,
                    onLabel: (String, String) -> Unit, onMove: (String, String) -> Unit, onRetry: () -> Unit,
-                   onDiscover: (Boolean) -> Unit) {
+                   onDiscover: (Boolean) -> Unit, onAccountAccess: () -> Unit, onReload: () -> Unit) {
     LaunchedEffect(Unit) { onDiscover(false) }
     var legalDocument by rememberSaveable { mutableStateOf<String?>(null) }
     val calendars = state.preferences.ordered(state.calendars)
@@ -43,7 +45,7 @@ fun SettingsScreen(state: CalendarUiState, onBack: () -> Unit, onSelect: (String
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Text(stringResource(R.string.settings_intro), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
-            FilledTonalButton(onClick = { onDiscover(true) }, enabled = !state.searching,
+            FilledTonalButton(onClick = onReload, enabled = !state.searching && !state.syncing,
                 modifier = Modifier.padding(horizontal = 16.dp).padding(top = 4.dp)) {
                 if (state.searching) CircularProgressIndicator(Modifier.size(18.dp).padding(end = 8.dp),
                     strokeWidth = 2.dp, color = LocalContentColor.current)
@@ -60,10 +62,14 @@ fun SettingsScreen(state: CalendarUiState, onBack: () -> Unit, onSelect: (String
                     Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary)
             }
-            if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (state.loading || state.syncing) LinearProgressIndicator(Modifier.fillMaxWidth())
+            SyncMessage(state, onAccountAccess)
             if (state.error != null) ErrorMessage(state.error, onRetry)
             if (calendars.isEmpty() && !state.loading && !state.searching) Text(stringResource(R.string.no_available_calendars), Modifier.padding(16.dp))
             LazyColumn(state = listState, modifier = Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
+                if (BuildConfig.DEBUG) {
+                    item(key = "developer_diagnostics") { DeveloperDiagnosticsEntry(state.calendars) }
+                }
                 itemsIndexed(calendars, key = { _, calendar -> calendar.key }) { index, calendar ->
                     val preference = state.preferences.preference(calendar)
                     var label by rememberSaveable(calendar.key) { mutableStateOf(preference.label) }

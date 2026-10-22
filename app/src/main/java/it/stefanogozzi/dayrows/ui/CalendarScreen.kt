@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import it.stefanogozzi.dayrows.R
 import it.stefanogozzi.dayrows.data.EventInstance
+import it.stefanogozzi.dayrows.data.CalendarSyncResult
 import it.stefanogozzi.dayrows.ui.components.CalendarMatrix
 import it.stefanogozzi.dayrows.viewmodel.*
 import java.time.format.DateTimeFormatter
@@ -26,7 +28,8 @@ import java.time.format.FormatStyle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int) -> Unit,
-                   onNavigate: (Int) -> Unit, onToday: () -> Unit, onRetry: () -> Unit, onEvent: (EventInstance) -> Unit) {
+                   onNavigate: (Int) -> Unit, onToday: () -> Unit, onRefresh: () -> Unit,
+                   onRetry: () -> Unit, onEvent: (EventInstance) -> Unit, onAccountAccess: () -> Unit) {
     val matrix = state.matrix
     val configuration = LocalConfiguration.current
     val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -39,9 +42,10 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
             val shortFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
             val shortPeriod = if (matrix.dates.size == 1) shortFormat.format(state.start)
                 else "${shortFormat.format(state.start)} – ${shortFormat.format(matrix.dates.last())}"
-            LandscapeToolbar(state.preferences.dayCount, shortPeriod, onSettings, onDays, onNavigate, onToday)
+            LandscapeToolbar(state.preferences.dayCount, shortPeriod, onSettings, onDays, onNavigate, onToday, onRefresh, state.syncing)
         } else {
             TopAppBar(title = { Text(stringResource(R.string.app_name)) }, actions = {
+                IconButton(onClick = onRefresh, enabled = !state.syncing) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh_events)) }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
             })
         }
@@ -57,7 +61,8 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
                     IconButton(onClick = { onNavigate(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_period)) }
                 }
             }
-            if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (state.loading || state.syncing) LinearProgressIndicator(Modifier.fillMaxWidth())
+            SyncMessage(state, onAccountAccess)
             if (state.error != null) ErrorMessage(state.error, onRetry)
             when {
                 matrix.rows.isNotEmpty() -> CalendarMatrix(matrix, state.zone, onEvent, Modifier.weight(1f))
@@ -75,7 +80,8 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LandscapeToolbar(selectedDays: Int, period: String, onSettings: () -> Unit,
-                             onDays: (Int) -> Unit, onNavigate: (Int) -> Unit, onToday: () -> Unit) {
+                             onDays: (Int) -> Unit, onNavigate: (Int) -> Unit, onToday: () -> Unit,
+                             onRefresh: () -> Unit, syncing: Boolean) {
     val scroll = rememberScrollState()
     val fontScale = LocalConfiguration.current.fontScale.coerceAtLeast(1f)
     Surface {
@@ -90,6 +96,7 @@ private fun LandscapeToolbar(selectedDays: Int, period: String, onSettings: () -
                 Text(period, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                 TextButton(onClick = onToday) { Text(stringResource(R.string.today), maxLines = 1) }
                 IconButton(onClick = { onNavigate(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_period)) }
+                IconButton(onClick = onRefresh, enabled = !syncing) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh_events)) }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
             }
         }
@@ -118,5 +125,25 @@ fun ErrorMessage(error: LoadError, onRetry: () -> Unit) {
         Text(stringResource(if (error == LoadError.PREFERENCES) R.string.preferences_error else R.string.provider_error),
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+    }
+}
+
+/** Activity completion is not proof of a successful server refresh. Local data remains usable. */
+@Composable
+fun SyncMessage(state: CalendarUiState, onAccountAccess: () -> Unit) {
+    val message = if (state.syncing) R.string.sync_in_progress else when (state.syncResult) {
+        CalendarSyncResult.FINISHED -> R.string.sync_finished
+        CalendarSyncResult.TIMED_OUT -> R.string.sync_timed_out
+        CalendarSyncResult.UNAVAILABLE -> R.string.sync_unavailable
+        CalendarSyncResult.ACCESS_REQUIRED -> R.string.sync_account_access_required
+        CalendarSyncResult.THROTTLED -> R.string.sync_throttled
+        else -> return
+    }
+    Text(stringResource(message), Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.bodySmall)
+    if (!state.syncing && state.syncResult == CalendarSyncResult.ACCESS_REQUIRED) {
+        TextButton(onClick = onAccountAccess, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text(stringResource(R.string.allow_account_sync))
+        }
     }
 }

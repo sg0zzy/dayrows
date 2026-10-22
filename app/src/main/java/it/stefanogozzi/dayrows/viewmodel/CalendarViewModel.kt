@@ -21,6 +21,8 @@ data class CalendarUiState(
     val discovered: Boolean = false,
     val error: LoadError? = null,
     val searching: Boolean = false,
+    val syncing: Boolean = false,
+    val syncResult: CalendarSyncResult? = null,
     val newCalendars: Int? = null,
 ) {
     val matrix: CalendarMatrix get() = CalendarMatrixBuilder().build(calendars, events,
@@ -36,6 +38,7 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
     private val refreshes = MutableStateFlow(0L)
     private val settings = preferences.preferences.stateIn(viewModelScope, SharingStarted.Eagerly, UserPreferences())
     private var discovery: Job? = null
+    private var syncJob: Job? = null
     private var baseline: Set<String>? = null
 
     init {
@@ -47,7 +50,7 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
         viewModelScope.launch {
             permission.flatMapLatest { allowed -> if (allowed) repository.changes.catch { _state.update { it.copy(error = LoadError.CALENDARS) } } else emptyFlow() }
                 .debounce(250).catch { _state.update { it.copy(error = LoadError.CALENDARS) } }
-                .collect { refresh() }
+                .collect { if (!state.value.syncing) refresh() }
         }
         viewModelScope.launch {
             val querySettings = settings.map { prefs -> prefs.dayCount to prefs.calendars.filter { it.selected }.map { it.key }.toSet() }.distinctUntilChanged()
@@ -58,32 +61,56 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
                         return@collectLatest
                     }
                     val zone = ZoneId.systemDefault()
-                    _state.update { it.copy(start = date, zone = zone, loading = true, events = emptyList(), error = null) }
+                    _state.update { it.copy(start = date, zone = zone, loading = true, error = null) }
                     try {
                         val calendars = repository.calendars()
                         preferences.discover(calendars)
                         val selectedIds = calendars.filter { it.key in config.second }.map { it.id }.toSet()
                         val events = repository.instances(selectedIds, date, date.plusDays(config.first.toLong()), zone)
                         ensureActive()
-                        _state.update { it.copy(calendars = calendars, events = events, loading = false, discovered = true) }
+                        _state.update { old ->
+                            val changedColors = calendars.count { fresh ->
+                                old.calendars.any { it.id == fresh.id && it.color != fresh.color }
+                            }
+                            if (changedColors > 0) calendarDebug("DayRows colors updated: $changedColors calendars")
+                            old.copy(calendars = calendars, events = events, loading = false, discovered = true)
+                        }
                     } catch (e: CancellationException) { throw e }
                     catch (_: Exception) {
-                        _state.update { it.copy(events = emptyList(), loading = false, error = LoadError.CALENDARS) }
+                        _state.update { it.copy(loading = false, error = LoadError.CALENDARS) }
                     }
                 }
         }
     }
-    fun permission(granted: Boolean) { permission.value = granted }
-    fun refresh() { refreshes.update { it + 1 } }
-
-    /** Asks every account behind the provider calendars to synchronize now (advisory: the platform
-     * schedules and batches it, DayRows performs no network request itself), then re-queries immediately.
-     * Rows that land later arrive through repository.changes and refresh the interface again. */
-    fun syncNow() {
-        viewModelScope.launch {
-            try { repository.requestSync() } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+    fun permission(granted: Boolean) {
+        permission.value = granted
+        if (!granted) {
+            syncJob?.cancel()
+            _state.update { it.copy(syncResult = null) }
         }
-        refresh()
+    }
+    fun refresh() { refreshes.update { it + 1 } }
+    fun syncNow() { synchronize() }
+
+    /** All entry points join one job. Provider notifications during the wait are coalesced into
+     * the final query, which reloads metadata AND events even if the adapter never notifies us. */
+    private fun synchronize(): Job? {
+        if (!permission.value) return null
+        syncJob?.takeIf { it.isActive }?.let { return it }
+        _state.update { it.copy(syncing = true, syncResult = null) }
+        return viewModelScope.launch {
+            try {
+                val result = repository.requestSync(manual = true)
+                _state.update { it.copy(syncResult = result) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                calendarDebug("sync unavailable: ${e.javaClass.simpleName}")
+                _state.update { it.copy(syncResult = CalendarSyncResult.UNAVAILABLE) }
+            } finally {
+                _state.update { it.copy(syncing = false) }
+                refresh()
+            }
+        }.also { syncJob = it }
     }
 
     /** Re-queries the calendar provider and merges every newly accessible calendar into the stored preferences.
@@ -94,9 +121,9 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
         discovery = viewModelScope.launch {
             _state.update { it.copy(searching = true, newCalendars = null) }
             try {
-                // An explicitly tapped search also asks the owning accounts to sync so calendars they
-                // have not registered on the device yet can arrive; the automatic search on entry stays passive.
-                if (announce) try { repository.requestSync() } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+                // A manual search joins the same sync as toolbar reload. Passive settings
+                // entry also waits for an ongoing sync before reporting discovered metadata.
+                if (announce) synchronize()?.join() else syncJob?.join()
                 val previous = baseline ?: state.value.preferences.calendars.map { it.key }.toSet()
                 val discovered = repository.calendars()
                 baseline = discovered.map { it.key }.toSet()

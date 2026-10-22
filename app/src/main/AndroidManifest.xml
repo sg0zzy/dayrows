@@ -1,8 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.READ_CALENDAR" />
-    <!-- Only consulted by the framework to honour the manual flag of ContentResolver.requestSync;
-         DayRows never enables, disables or reconfigures synchronization settings itself. -->
-    <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
+    <!-- Inspect disabled sync settings and observe active/pending account syncs. -->
+    <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
+    <uses-permission android:name="android.permission.READ_SYNC_STATS" />
+    <!-- Sync APIs filter adapter packages by visibility on current Android versions. -->
+    <queries>
+        <intent><action android:name="android.content.SyncAdapter" /></intent>
+        <!-- Google's adapter services may not be discoverable through the intent query. -->
+        <package android:name="com.google.android.calendar" />
+    </queries>
     <application android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:localeConfig="@xml/locales_config" android:label="@string/application_label" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:supportsRtl="true" android:theme="@style/Theme.DayRows">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>

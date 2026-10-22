@@ -22,6 +22,7 @@
     <string name="settings_intro">Scegli i calendari, aggiungi etichette locali e ordina le righe. Tieni premuta una maniglia per trascinare o usa le frecce. Le modifiche si salvano automaticamente e riguardano solo DayRows.</string>
     <string name="no_available_calendars">Nessun calendario leggibile disponibile. Aggiungi o sincronizza un calendario nelle impostazioni del dispositivo, poi torna qui.</string>
     <string name="refresh_calendars">Aggiorna calendari</string>
+    <string name="refresh_events">Aggiorna eventi</string>
     <string name="searching_calendars">Ricerca di calendari…</string>
     <string name="no_new_calendars">Nessun nuovo calendario trovato.</string>
     <plurals name="new_calendars_found">
@@ -48,4 +49,13 @@
     <string name="legal_loading">Caricamento del documento…</string>
     <string name="legal_load_error">Impossibile aprire il documento. Chiudi e riprova.</string>
     <string name="legal_notice">© 2026 i contributori di DayRows. Software libero con licenza GPL-3.0-or-later. Nessuna garanzia, nei limiti consentiti dalla legge.</string>
+    <string name="sync_in_progress">In attesa della sincronizzazione… I dati locali restano disponibili.</string>
+    <string name="sync_throttled">È stata richiesta una sincronizzazione di recente. Sono mostrati i dati locali; attendi prima di riprovare.</string>
+    <string name="sync_finished">Attività di sincronizzazione terminata. Sono mostrati i dati disponibili sul dispositivo.</string>
+    <string name="sync_timed_out">Impossibile confermare la fine della sincronizzazione entro 30 secondi. Sono mostrati i dati locali; eventuali aggiornamenti successivi appariranno automaticamente.</string>
+    <string name="sync_unavailable">Impossibile sincronizzare alcuni calendari. Controlla permessi e impostazioni di sincronizzazione degli account. Sono mostrati i dati disponibili localmente.</string>
+    <string name="sync_account_access_required">Consenti a DayRows di accedere agli account calendario per richiedere la sincronizzazione. I calendari esistenti restano leggibili. Ripeti per ogni account da sincronizzare.</string>
+    <string name="allow_account_sync">Consenti sincronizzazione account</string>
+    <string name="sync_account_picker_description">Scegli un account calendario esistente per consentire a DayRows di richiedere la sincronizzazione. Non servono un nuovo accesso Google o un’autorizzazione OAuth.</string>
+    <string name="sync_account_picker_unavailable">Il selettore account di Android non è disponibile. I calendari memorizzati sul dispositivo restano leggibili.</string>
 </resources>
