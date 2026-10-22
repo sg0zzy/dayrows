@@ -34,6 +34,12 @@
     <string name="not_syncing">Sincronizzazione disattivata · gli eventi potrebbero non essere aggiornati</string>
     <string name="identity_unavailable">Identità sorgente non univoca · preferenze valide solo per questa sessione</string>
     <string name="local_label">Etichetta locale (facoltativa)</string>
+    <string name="edit_calendar_label">Modifica etichetta del calendario</string>
+    <string name="save">Salva</string>
+    <string name="cancel">Annulla</string>
+    <string name="calendar_not_editable">Questo calendario non consente di aggiungere eventi.</string>
+    <string name="add_event_on_date">Aggiungi un evento il %1$s</string>
+    <string name="edit_label_for_calendar">Modifica l’etichetta di %1$s</string>
     <string name="move_up">Sposta il calendario in alto</string>
     <string name="move_down">Sposta il calendario in basso</string>
     <string name="drag_reorder">Tieni premuto e trascina per riordinare il calendario</string>

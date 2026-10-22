@@ -12,16 +12,22 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import it.stefanogozzi.dayrows.R
+import it.stefanogozzi.dayrows.data.DeviceCalendar
 import it.stefanogozzi.dayrows.data.EventInstance
 import it.stefanogozzi.dayrows.data.CalendarSyncResult
 import it.stefanogozzi.dayrows.ui.components.CalendarMatrix
 import it.stefanogozzi.dayrows.viewmodel.*
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -29,7 +35,8 @@ import java.time.format.FormatStyle
 @Composable
 fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int) -> Unit,
                    onNavigate: (Int) -> Unit, onToday: () -> Unit, onRefresh: () -> Unit,
-                   onRetry: () -> Unit, onEvent: (EventInstance) -> Unit, onAccountAccess: () -> Unit) {
+                   onRetry: () -> Unit, onEvent: (EventInstance) -> Unit, onAccountAccess: () -> Unit,
+                   onNewEvent: (DeviceCalendar, LocalDate) -> Unit, onLabel: (String, String) -> Unit) {
     val matrix = state.matrix
     val configuration = LocalConfiguration.current
     val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -37,6 +44,8 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
     val format = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
     val period = if (matrix.dates.size == 1) format.format(state.start)
         else "${format.format(state.start)} – ${format.format(matrix.dates.last())}"
+    // Tapping a calendar name opens the same local-label editor used in Settings.
+    var labelTarget by remember { mutableStateOf<DeviceCalendar?>(null) }
     Scaffold(topBar = {
         if (landscape) {
             val shortFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
@@ -65,7 +74,8 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
             SyncMessage(state, onAccountAccess)
             if (state.error != null) ErrorMessage(state.error, onRetry)
             when {
-                matrix.rows.isNotEmpty() -> CalendarMatrix(matrix, state.zone, onEvent, Modifier.weight(1f))
+                matrix.rows.isNotEmpty() -> CalendarMatrix(matrix, state.zone, onEvent, onNewEvent,
+                    { labelTarget = it }, Modifier.weight(1f))
                 !state.loading && state.discovered -> Column(Modifier.fillMaxSize().padding(24.dp),
                     verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(stringResource(R.string.no_selected_calendars), style = MaterialTheme.typography.bodyLarge)
@@ -73,6 +83,11 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
                 }
             }
         }
+    }
+    labelTarget?.let { calendar ->
+        LabelEditDialog(calendar, state.preferences.preference(calendar).label,
+            onDismiss = { labelTarget = null },
+            onConfirm = { value -> onLabel(calendar.key, value); labelTarget = null })
     }
 }
 

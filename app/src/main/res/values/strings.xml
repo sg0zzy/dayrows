@@ -34,6 +34,12 @@
     <string name="not_syncing">Not synchronizing · events may be out of date</string>
     <string name="identity_unavailable">No unique source identity · preferences apply for this session only</string>
     <string name="local_label">Local label (optional)</string>
+    <string name="edit_calendar_label">Edit calendar label</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="calendar_not_editable">This calendar does not allow adding events.</string>
+    <string name="add_event_on_date">Add an event on %1$s</string>
+    <string name="edit_label_for_calendar">Edit the label of %1$s</string>
     <string name="move_up">Move calendar up</string>
     <string name="move_down">Move calendar down</string>
     <string name="drag_reorder">Hold and drag to reorder calendar</string>

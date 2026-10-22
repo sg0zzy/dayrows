@@ -18,10 +18,13 @@ more space for the matrix. At very large font sizes or in narrow landscape
 windows, the toolbar scrolls horizontally to keep its controls readable.
 Day headers use a single compact line, such as “Fri 16 Oct” or “ven 16 ott”.
 
-DayRows is a **view**. It never creates, edits or deletes calendars or events.
-It reads Android’s Calendar Provider, including Google calendars and other
-calendars already synchronized by apps on the device. DayRows does not implement
-synchronization, sign-in, network requests, a backend or telemetry. Locally
+DayRows is a **view**. It never creates, edits or deletes calendars or events in
+the Calendar Provider itself. It reads Android’s Calendar Provider, including
+Google calendars and other calendars already synchronized by apps on the device.
+When you tap an empty cell, DayRows hands a pre-filled new event to an installed
+calendar app, which performs the insertion under its own permissions; DayRows
+keeps only `READ_CALENDAR`. DayRows does not implement synchronization, sign-in,
+network requests, a backend or telemetry. Locally
 available events work offline. The only runtime permission is `READ_CALENDAR`;
 there is no `WRITE_CALENDAR` or `INTERNET` permission. AndroidX also declares an
 app-private signature permission to secure internal broadcast receivers.
@@ -34,6 +37,10 @@ and arrange rows with the arrows or by holding and dragging the ≡ handle.
 Changes save automatically in DataStore. Tap Done to return to the matrix.
 None of these preferences change the source calendar.
 
+A local label can also be edited straight from the matrix: tap a calendar name
+to open the same label editor used in Settings. The label is a private DayRows
+name for that calendar; the source calendar keeps its own name.
+
 English is the fallback language; Italian translations are included. Android
 selects the device language unless you set a per-app language override (Android
 13+). Calendar names and event titles retain their source text.
@@ -42,7 +49,11 @@ Privacy, terms, and the full GPLv3 are available offline at the end of Settings.
 The permission explanation also provides the privacy policy before you grant
 calendar access. English and Italian privacy/terms are included in the same files.
 
-Tap an event to open its occurrence in an installed calendar app. Continued
+Tap an event to open its occurrence in an installed calendar app. Tap an empty
+cell to start a new event on that day in that calendar: DayRows opens the
+calendar app with the day, a one-hour slot and the calendar already filled in.
+Only calendars you can edit show this action; read-only and free/busy calendars
+keep a plain placeholder. Continued
 entries use ↤ / ↦; `24:00` marks an exclusive midnight end. All-day events use
 the provider’s UTC date semantics. Recurrences come from `CalendarContract.Instances`.
 The device’s current zone determines timed events’ day boundaries, including DST.
@@ -172,8 +183,14 @@ Reload investigation and extension guide. Release builds exclude the implementat
 - Event details require a compatible calendar app. DayRows handles a missing
   handler with a message. Work-profile calendars require visibility through the
   current profile’s provider; no cross-profile integration is added.
+- Starting a new event from an empty cell also requires a compatible calendar
+  app. The receiving app decides how the pre-filled day, one-hour slot and
+  target calendar are presented, and whether it accepts them. DayRows itself
+  never writes to the provider, so a calendar app that ignores the pre-filled
+  calendar may insert the event elsewhere.
 - This is an early milestone: physical-device and vendor-specific calendar
-  provider testing remains necessary. No editing, search, widgets or notifications.
+  provider testing remains necessary. No event editing inside DayRows, search,
+  widgets or notifications.
 
 ## Publication documents and release preparation
 

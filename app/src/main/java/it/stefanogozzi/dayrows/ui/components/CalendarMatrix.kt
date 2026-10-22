@@ -14,18 +14,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import it.stefanogozzi.dayrows.R
+import it.stefanogozzi.dayrows.data.DeviceCalendar
 import it.stefanogozzi.dayrows.data.EventInstance
 import it.stefanogozzi.dayrows.domain.*
 import java.time.*
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance) -> Unit, modifier: Modifier = Modifier) {
+fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance) -> Unit,
+                   onNewEvent: (DeviceCalendar, LocalDate) -> Unit, onCalendarName: (DeviceCalendar) -> Unit,
+                   modifier: Modifier = Modifier) {
     val scroll = rememberScrollState()
     val locale = LocalConfiguration.current.locales[0]
     val dateFormat = remember(locale) { DateTimeFormatter.ofPattern("EEE d MMM", locale) }
@@ -64,14 +69,36 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
                             verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Box(Modifier.size(10.dp).background(Color(row.calendar.color), CircleShape)
                                 .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
-                            Text(row.label.ifBlank { stringResource(R.string.unnamed_calendar) }, style = MaterialTheme.typography.labelLarge)
+                            val nameDescription = stringResource(R.string.edit_label_for_calendar,
+                                row.label.ifBlank { stringResource(R.string.unnamed_calendar) })
+                            Text(row.label.ifBlank { stringResource(R.string.unnamed_calendar) },
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.clickable { onCalendarName(row.calendar) }
+                                    .semantics { contentDescription = nameDescription })
                         }
                         Row(Modifier.horizontalScroll(scroll).height(IntrinsicSize.Min)) {
-                            row.cells.forEach { events ->
+                            row.cells.forEachIndexed { index, events ->
+                                val date = matrix.dates[index]
+                                val editable = row.calendar.isEditable()
+                                val description = stringResource(R.string.add_event_on_date, dateFormat.format(date))
                                 Row(Modifier.width(dayWidth).fillMaxHeight()) {
                                     VerticalDivider()
-                                    Column(Modifier.weight(1f).padding(horizontal = 7.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        if (events.isEmpty()) Text("—", Modifier.padding(6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    // An empty cell of an editable calendar is one tap target; a read-only
+                                    // calendar keeps the plain placeholder and no action.
+                                    Column(Modifier.weight(1f)
+                                        .then(if (events.isEmpty() && editable)
+                                            Modifier.clickable { onNewEvent(row.calendar, date) }
+                                                .semantics { contentDescription = description } else Modifier)
+                                        .heightIn(min = 48.dp)
+                                        .padding(horizontal = 7.dp, vertical = 6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        if (events.isEmpty()) {
+                                            if (editable) {
+                                                Text("+", Modifier.padding(6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            } else {
+                                                Text("—", Modifier.padding(6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
                                         events.forEach { event ->
                                             EventCell(event, zone, onEvent)
                                         }

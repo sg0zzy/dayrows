@@ -36,9 +36,13 @@ import androidx.lifecycle.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import it.stefanogozzi.dayrows.data.*
+import it.stefanogozzi.dayrows.domain.isEditable
+import it.stefanogozzi.dayrows.domain.newEventDraft
 import it.stefanogozzi.dayrows.ui.*
 import it.stefanogozzi.dayrows.ui.theme.DayRowsTheme
 import it.stefanogozzi.dayrows.viewmodel.CalendarViewModel
+import java.time.LocalDate
+import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -153,7 +157,7 @@ class MainActivity : ComponentActivity() {
                             onReload = { requestAccountAccess(reloadSettings = true) })
                         else -> CalendarScreen(state, { inSettings = true }, model::days, model::navigate, model::today,
                             onRefresh = { requestAccountAccess(reloadSettings = false) }, onRetry = model::refresh, onEvent = ::openEvent,
-                            onAccountAccess = allowAccountSync)
+                            onAccountAccess = allowAccountSync, onNewEvent = ::openNewEvent, onLabel = model::label)
                     }
                 }
             }
@@ -164,6 +168,23 @@ class MainActivity : ComponentActivity() {
         val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.eventId)
         val intent = Intent(Intent.ACTION_VIEW, uri).putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, event.start.toEpochMilli())
             .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, event.end.toEpochMilli()).putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, event.allDay)
+        try { startActivity(intent) }
+        catch (_: ActivityNotFoundException) { Toast.makeText(this, R.string.no_calendar_handler, Toast.LENGTH_LONG).show() }
+        catch (_: SecurityException) { Toast.makeText(this, R.string.no_calendar_handler, Toast.LENGTH_LONG).show() }
+    }
+
+    /** Hands a pre-filled new event to an installed calendar app. DayRows holds only READ_CALENDAR
+     * and never writes to the provider, so the receiving app performs the insertion itself. */
+    private fun openNewEvent(calendar: DeviceCalendar, date: LocalDate) {
+        if (!calendar.isEditable()) {
+            Toast.makeText(this, R.string.calendar_not_editable, Toast.LENGTH_LONG).show()
+            return
+        }
+        val draft = newEventDraft(calendar, date, ZoneId.systemDefault())
+        val intent = Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)
+            .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, draft.startMillis)
+            .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, draft.endMillis)
+            .putExtra(CalendarContract.Events.CALENDAR_ID, calendar.id)
         try { startActivity(intent) }
         catch (_: ActivityNotFoundException) { Toast.makeText(this, R.string.no_calendar_handler, Toast.LENGTH_LONG).show() }
         catch (_: SecurityException) { Toast.makeText(this, R.string.no_calendar_handler, Toast.LENGTH_LONG).show() }

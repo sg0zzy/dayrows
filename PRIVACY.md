@@ -32,10 +32,17 @@ attendee lists, event descriptions, or location fields.
 The only runtime permission requested is `READ_CALENDAR`. DayRows explains this
 before asking. You can deny it or revoke it in Android's app permission settings;
 the calendar view will then be unavailable. DayRows never requests
-`WRITE_CALENDAR`, never changes provider calendars or events, and has no
-`INTERNET` permission. AndroidX also declares an app-private signature permission
-for internal broadcast receiver safety; it grants no access to your calendar or
-network.
+`WRITE_CALENDAR`, never inserts, updates or deletes provider calendars or events
+itself, and has no `INTERNET` permission. AndroidX also declares an app-private
+signature permission for internal broadcast receiver safety; it grants no access
+to your calendar or network.
+
+When you tap an empty cell in the matrix, DayRows asks an installed calendar app
+to create a new event. That request contains the target calendar's identifier,
+the selected day's start and end time, and the day itself. The calendar app
+performs the insertion under its own permissions and privacy policy, and DayRows
+never receives the resulting event. Only calendars that report an access level
+allowing edits offer this action.
 
 DayRows also declares the install-time permissions `READ_SYNC_SETTINGS` and
 `READ_SYNC_STATS` to respect disabled account synchronization and observe calendar
@@ -87,6 +94,11 @@ When you tap an event, DayRows asks an installed calendar application to display
 it. That user-initiated request contains the event URI/ID, instance start and end
 times, and all-day flag. The receiving calendar app handles that request under
 its own permissions and privacy policy.
+
+When you tap an empty cell, DayRows asks an installed calendar application to
+create a new event there. That user-initiated request contains the target
+calendar's identifier and the selected day's start and end time. The receiving
+calendar app creates the event under its own permissions and privacy policy.
 
 Calendar apps and account synchronization services, including Google services
 when configured on your device, may synchronize the original calendar data

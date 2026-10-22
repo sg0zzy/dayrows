@@ -577,3 +577,29 @@ Follow-up GitHub dry run [39827214898](https://github.com/sg0zzy/dayrows/actions
 passed using the real v0.1.3 verified release artifact. Both Google authentication
 and upload steps were skipped, and the retained delivery status is `prepared`.
 This validates the hosted workflow without claiming Google Play acceptance.
+
+### Authorized patch bump and source push (2026-10-22)
+
+The user explicitly requested a patch bump, commit and push of the matrix
+new-event and calendar-label work. Advance the authoritative VERSION from 0.1.3
+to 0.1.4 (existing Android core mapping: versionCode 5), without changing
+package IDs, signing identities or permissions. This is a source/development
+bump and branch push, not a stable tag, official signing or release-publication
+operation. No tag is created and no store is contacted.
+
+Verified the pinned standards checkout before preparation. Managed 0.1.4 debug
+packaging, 71 debug unit tests and debug lint passed; release unit tests and
+release lint passed; 83 infrastructure tests passed. Unsigned release APK/AAB
+packaging succeeded and the release APK reports `it.stefanogozzi.dayrows`
+0.1.4 versionCode 5 with no debug-only diagnostics markers. The debug package
+remains `it.stefanogozzi.dayrows.debug` 0.1.4-debug with the shared code 5.
+Existing settings recovery and official release-history/signing gaps remain
+unresolved.
+
+Feature behavior was exercised on an emulator (API 36) with a writable calendar
+(access level 700) and a read-only one (200). The captured intent was
+`ACTION_INSERT` on `content://com.android.calendar/events` with the day, a
+one-hour 09:00-10:00 local slot and the target calendar identifier; the second
+day column produced the following day, and the read-only calendar exposed no
+new-event action. The local label edited from the matrix persisted across a
+restart and matched the Settings label.

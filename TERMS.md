@@ -18,8 +18,13 @@ Third-party components retain their own applicable licenses and notices.
 
 DayRows is a read-only view of calendars already available through Android's
 Calendar Provider. It requires your permission to read them. It does not provide
-calendar hosting, account authentication, synchronization, or event editing.
-Local selections, labels, and ordering affect only DayRows.
+calendar hosting, account authentication, synchronization, or event editing, and
+it never writes to the Calendar Provider itself. Local selections, labels, and
+ordering affect only DayRows.
+
+Starting a new event from an empty cell is a hand-off, not an in-app editor:
+DayRows asks an installed calendar application to create the event, and that
+application performs the insertion under its own terms and permissions.
 
 Use calendar information only where you are entitled to access it. Sharing an
 account or device can expose calendars through Android's existing account and
@@ -36,7 +41,8 @@ or continuous availability; it implements no reminder or notification service.
 
 Tapping an event delegates to an installed calendar application. That application,
 your calendar provider, Android, and an app store are governed by their own terms.
-DayRows is an independent project, not an official Google product or an endorsed
+Tapping an empty cell does the same for a new event. DayRows is an independent
+project, not an official Google product or an endorsed
 product of any calendar provider.
 
 ## Privacy
