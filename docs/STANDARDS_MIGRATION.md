@@ -572,3 +572,8 @@ then applies all checksum/signature/identity gates. The receipt records its
 artifact source and run ID. No rebuild or credential broadening occurs; expired
 draft artifacts require publishing the original GitHub draft. Regression tests
 cover exact-tag selection, fallback bytes and expired-artifact failure.
+
+Follow-up GitHub dry run [39827214898](https://github.com/sg0zzy/dayrows/actions/runs/39827214898)
+passed using the real v0.1.3 verified release artifact. Both Google authentication
+and upload steps were skipped, and the retained delivery status is `prepared`.
+This validates the hosted workflow without claiming Google Play acceptance.
