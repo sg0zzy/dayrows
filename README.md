@@ -125,6 +125,8 @@ reused IDs. A debug-only `FakeCalendarRepository` is available for tests/preview
 - `app/src/test/`: local unit tests; `app/src/debug/`: fake repository.
 - `scripts/build-debug.sh`: debug build and archive helper.
 - `.github/workflows/build-apk.yml`: automatic/manual debug APK checks and artifact upload.
+- `.github/workflows/play-upload.yml`: manually upload verified release AAB,
+  native symbols and R8 mapping to a Google Play draft; [setup and usage](docs/GOOGLE_PLAY_UPLOAD.md).
 - `icons/`: source artwork. `main_concept.png` is retained as supplied; the
   launcher assets are generated from the adaptive foreground and Play icon by
   Gradle for both script and direct builds. The script also archives the Play icon

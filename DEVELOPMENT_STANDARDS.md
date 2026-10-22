@@ -70,7 +70,13 @@ reservations/artifacts and record unresolved MUST gaps. No automatic pin updates
 | CI and validation | `.github/workflows/build-apk.yml`; main push/PR and manual; exact event SHA, PR proposed merge with head/base recorded; required infrastructure tests, Android unit tests, lint, package verification; 14-day artifacts |
 | Beta/stable coordination, preparation, notes/recovery | Not implemented; [release readiness](docs/DEVELOPMENT.md#official-releases-and-distribution) and gaps below; no allocator/tag/release operation is provided |
 | Android code/signing/update history | Existing production application ID and debug code adapter preserved; debug signer verified and recorded. Production identities, consumed codes and compatible update paths are not established |
-| Distribution/approval/retry | Explicit disabled beta/stable destinations in [development operations](docs/DEVELOPMENT.md#official-releases-and-distribution); no remote delivery tool or standing authority |
+| Distribution/approval/retry | Manual-dispatch Google Play draft uploader with artifact verification and retry receipts; beta remains disabled, Play review/rollout manual, and no standing automatic delivery authority. See [development operations](docs/DEVELOPMENT.md#official-releases-and-distribution) |
+
+Manual Google Play delivery is now implemented as an explicit-dispatch-only
+destination; see [Google Play upload](docs/GOOGLE_PLAY_UPLOAD.md) for its scoped
+credential, exact artifact consumption, draft-only behavior and retry evidence.
+This does not authorize automatic delivery on pushes/tags, grant a standing store
+rollout policy, change the pin, or close the historical code/signing/recovery gaps.
 
 ## Overrides, recommendations and gaps
 

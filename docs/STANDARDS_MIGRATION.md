@@ -524,3 +524,43 @@ Managed 0.1.3 debug packaging, 62 debug tests and debug lint passed; 42 release
 tests, release lint and unsigned release APK/AAB packaging passed; 57 infrastructure
 tests passed. Release APK excludes diagnostic log/probe/audit markers. Existing
 settings recovery and official release-history/signing gaps remain unresolved.
+
+### Manual Google Play draft delivery (2026-10-22)
+
+The publisher requested a manually launched GitHub Action to upload an existing
+release's AAB and symbols to Google Play. `play-upload.yml` implements that scoped
+manual destination for `it.stefanogozzi.dayrows`: canonical stable tag input, track
+choice defaulting to internal, and draft-only status with no review submission or
+rollout. It consumes the exact checksum-verified signed release AAB, native symbols
+and R8 mapping after confirming a successful Stable Release run at the tag SHA.
+No recompilation, version/identity/signing change, or app permission change.
+
+SECURITY Q01/Q02: explicit workflow_dispatch only, main-only trusted uploader code,
+read-only GitHub permissions, shared app-level concurrency, scoped `google-play`
+environment, full-SHA-pinned official Google auth action with no credential file,
+short-lived androidpublisher token and no token/key in retained evidence. The
+publisher must configure the service account, app/track rights and environment
+main-branch restrictions before real upload. Existing repository upload-signer
+variable is mandatory; signing credentials are neither read nor replaced.
+
+DISTRIBUTION D01–D05: input source/version/package/code and three payload hashes,
+edit IDs and result states are recorded separately from GitHub release success.
+Query remote bundle/track state before upload, reuse matching bundle bytes, refuse
+conflicting code/hash, unrelated draft, older track version and unverified live
+release mutation. Repeats with trusted matching receipts become no-ops. Preserve
+pending commit confirmation for reconciliation instead of automatic upload retry.
+Google's API exposes no symbol hash lookup: a matching existing draft without a
+receipt can have verified attachments reconciled; a live release without receipt
+fails for manual investigation. Receipts are retained as Actions artifacts for
+90 days, not claimed as a durable full-history/version-code ledger.
+
+Verified the exact pinned standards. 80 infrastructure tests passed, including
+mocked upload, symbol/mapping acknowledgement, conflicting/downgrade/duplicate
+delivery, existing track preservation, lost commit response and receipt trust.
+Actionlint 1.7.12 passed (download digest verified against upstream release
+metadata). Debug unit tests (62) and debug lint passed with unchanged app source.
+The real v0.1.3 preparation path passed release checksums, AAB identity/versionCode
+4/upload signer and all eight native-symbol entries without contacting Google
+Play. Actual service-account authentication, store acceptance, review and rollout
+remain untested until the publisher configures credentials and dispatches upload.
+Historical release-code/signing inventory and local settings recovery gaps remain.

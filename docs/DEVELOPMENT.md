@@ -226,8 +226,11 @@ authorization for that release build. The pipeline has four jobs:
    replacing them). The workflow leaves the release in draft; publication keeps
    the tag, draft and staging evidence intact either way.
 
-The AAB asset is downloaded and uploaded to Play Console
-manually and that acceptance is a separate destination state. Two more assets
+The AAB asset can be uploaded through the manually dispatched
+[Upload to Google Play workflow](GOOGLE_PLAY_UPLOAD.md), or downloaded for manual
+Play Console upload. The workflow consumes verified release assets and stages a
+Play draft with AAB, native symbols and R8 mapping; review/rollout and acceptance
+remain separate manual destination states. Two more assets
 feed Play's deobfuscation pipeline: the `symbols.zip` (native `.so` set with
 `<ABI>/` directories at the zip root — no `lib/` wrapper, no manifest) goes to
 the release's "Debug symbols" step, and the `mapping.txt` file goes to the
@@ -239,7 +242,7 @@ retraced Java/Kotlin stack traces and attributed native crash/ANR frames. If a
 future build disables minification, the mapping asset simply vanishes and only
 native frames are attributed. The workflow does not
 implement beta allocation (`-dev.N`), durable release/ledger records, or the
-Play delivery destination; those remain explicit gaps, and the tag workflow's
+automatic Play rollout; those remain explicit gaps, and the tag workflow's
 `notes-baseline` resolver covers the notes-side requirements only.
 
 ## Official releases and distribution
@@ -254,7 +257,7 @@ No official update edges (including cross-GitHub/Play) are promised yet.
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Beta | Release APK, manifest, SHA-256 checksums | Disabled pending implementation |
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Stable | Release APK + AAB, SHA-256 checksums, verified notes | Draft staged `automatic`ally after an authorized annotated `vX.Y.Z` tag push; visibility flip is `manual` ([Stable Release](../.github/workflows/release.yml)) |
 | Google Play, `it.stefanogozzi.dayrows` | Android/universal | Beta | None enabled | Disabled |
-| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB + native debug-symbols zip when configured | `manual`: the AAB draft asset is staged by the GitHub pipeline, the human uploads it and its symbols in Play Console and records acceptance |
+| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB + native symbols ZIP + R8 mapping from an existing successful GitHub release build | `manual`: explicitly dispatch `play-upload.yml` on `main` to create a draft on the selected track (default internal); requires `google-play` environment/service-account secret. Review, acceptance and rollout remain manual; see [setup and recovery](GOOGLE_PLAY_UPLOAD.md) |
 
 All other destinations default to disabled. Credentials/environment references and
 automated retry identities are intentionally unconfigured while disabled; no tool
