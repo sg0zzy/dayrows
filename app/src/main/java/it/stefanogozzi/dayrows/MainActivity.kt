@@ -38,7 +38,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import it.stefanogozzi.dayrows.data.*
 import it.stefanogozzi.dayrows.domain.SyncAccountChoice
-import it.stefanogozzi.dayrows.domain.canBePreselected
 import it.stefanogozzi.dayrows.domain.chooserGrant
 import it.stefanogozzi.dayrows.domain.needingAccountAccess
 import it.stefanogozzi.dayrows.domain.newEventDraft
@@ -205,27 +204,23 @@ class MainActivity : ComponentActivity() {
     /** Hands a pre-filled new event to an installed calendar app. DayRows holds only READ_CALENDAR
      * and never writes to the provider, so the receiving app performs the insertion itself.
      *
-     * The target calendar is named with the `calendar_id` extra, the platform convention the AOSP
-     * calendar app reads. Google Calendar reads no calendar-selecting extra at all and picks the
-     * first calendar of the list it builds from its own writable visible calendars, so a calendar
-     * outside that list cannot be honored by any receiving app: [canBePreselected] keeps those
-     * calendars out of the insert path instead of silently landing on another calendar.
+     * The intent names the day and the slot, and deliberately names no calendar. A receiving app
+     * offers the calendars it can write to and that are visible to it, and it may keep its own
+     * default whatever a third party asks for: Google Calendar reads no calendar-selecting insert
+     * extra at all, and the platform app only honors one it would have offered anyway. A named
+     * calendar would therefore be a promise DayRows cannot keep, so the calendar is chosen in the
+     * app that already owns that choice.
      *
      * The mime type is the one both the platform and Google Calendar declare for an insert
      * request, so the same intent reaches either app. */
-    private fun openNewEvent(calendar: DeviceCalendar, date: LocalDate) {
-        if (!calendar.canBePreselected()) {
-            Toast.makeText(this, R.string.calendar_not_editable, Toast.LENGTH_LONG).show()
-            return
-        }
-        val draft = newEventDraft(calendar, date, ZoneId.systemDefault())
+    private fun openNewEvent(date: LocalDate) {
+        val draft = newEventDraft(date, ZoneId.systemDefault())
         // setDataAndType keeps both the documented events URI and the mime type; setType alone
         // would clear the URI.
         val intent = Intent(Intent.ACTION_INSERT)
             .setDataAndType(CalendarContract.Events.CONTENT_URI, EVENT_MIME_TYPE)
             .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, draft.startMillis)
             .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, draft.endMillis)
-            .putExtra(CalendarContract.Events.CALENDAR_ID, calendar.id)
         try { startActivity(intent) }
         catch (_: ActivityNotFoundException) { Toast.makeText(this, R.string.no_calendar_handler, Toast.LENGTH_LONG).show() }
         catch (_: SecurityException) { Toast.makeText(this, R.string.no_calendar_handler, Toast.LENGTH_LONG).show() }

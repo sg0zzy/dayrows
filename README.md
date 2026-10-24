@@ -49,14 +49,13 @@ Privacy, terms, and the full GPLv3 are available offline at the end of Settings.
 The permission explanation also provides the privacy policy before you grant
 calendar access. English and Italian privacy/terms are included in the same files.
 
-Tap an event to open its occurrence in an installed calendar app. Tap an empty
-cell to start a new event on that day in that calendar: DayRows opens the
-calendar app with the day, a one-hour slot and the calendar already filled in.
-The + marker sits in the middle of the cell. Only calendars you can edit and
-that the receiving app offers for a new event show this action; read-only,
-free/busy and hidden calendars keep a plain placeholder. A hidden calendar is
-not in the list a calendar app presents, so offering it would make the app
-select a different calendar than the one you tapped.
+Tap an event to open its occurrence in an installed calendar app. Tap the + at the
+trailing edge of a day column to start a new event on that day: DayRows opens the
+calendar app with the day and a one-hour slot already filled in, and you choose the
+calendar there. The action belongs to the day and not to a calendar row, because a
+receiving app is free to keep its own calendar whatever a third party asks for and a
+marker in a row would promise a calendar DayRows cannot guarantee. Empty cells show
+`—`.
 Continued
 entries use ↤ / ↦; `24:00` marks an exclusive midnight end. All-day events use
 the provider’s UTC date semantics. Recurrences come from `CalendarContract.Instances`.
@@ -208,16 +207,12 @@ Reload investigation and extension guide. Release builds exclude the implementat
 - Event details require a compatible calendar app. DayRows handles a missing
   handler with a message. Work-profile calendars require visibility through the
   current profile’s provider; no cross-profile integration is added.
-- Starting a new event from an empty cell also requires a compatible calendar
-  app. The receiving app decides how the pre-filled day, one-hour slot and
-  target calendar are presented, and whether it accepts them. DayRows itself
-  never writes to the provider, so a calendar app that ignores the pre-filled
-  calendar may insert the event elsewhere. The day and the slot arrive in every
-  calendar app, because `beginTime` and `endTime` are read by Google Calendar as
-  well as by Android’s own calendar app. The target calendar is passed as the
-  `calendar_id` intent extra, the platform convention; Google Calendar reads no
-  such extra and chooses its own default calendar instead, so the calendar still
-  has to be confirmed in the receiving app there.
+- Starting a new event also requires a compatible calendar app. DayRows hands over
+  the day and a one-hour slot with `ACTION_INSERT`; `beginTime` and `endTime` are
+  read by Google Calendar as well as by Android’s own calendar app. The request
+  names no calendar, because a receiving app offers only the calendars it can write
+  to and that are visible to it and may keep its own default in any case, so the
+  calendar is chosen in that app. DayRows itself never writes to the provider.
 - This is an early milestone: physical-device and vendor-specific calendar
   provider testing remains necessary. No event editing inside DayRows, search,
   widgets or notifications.

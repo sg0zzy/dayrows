@@ -37,7 +37,6 @@
     <string name="edit_calendar_label">Edit calendar label</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
-    <string name="calendar_not_editable">This calendar does not allow adding events.</string>
     <string name="select_sync_accounts">Select accounts to synchronize</string>
     <string name="select_sync_accounts_hint">Choose one or more accounts. Accounts that DayRows cannot see yet are authorized one at a time through the system account chooser.</string>
     <string name="account_already_allowed">Already allowed for DayRows</string>

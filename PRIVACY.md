@@ -37,12 +37,13 @@ itself, and has no `INTERNET` permission. AndroidX also declares an app-private
 signature permission for internal broadcast receiver safety; it grants no access
 to your calendar or network.
 
-When you tap an empty cell in the matrix, DayRows asks an installed calendar app
-to create a new event. That request contains the target calendar's identifier,
-the selected day's start and end time, and the day itself. The calendar app
-performs the insertion under its own permissions and privacy policy, and DayRows
-never receives the resulting event. Only calendars that report an access level
-allowing edits offer this action.
+When you tap the + next to a day in the matrix, DayRows asks an installed calendar app
+to create a new event. That request contains the selected day, that day's start and end
+time, and nothing else: it deliberately names no calendar, because the receiving app
+decides which of your calendars to offer and may keep its own default whatever a third
+party asks for. The calendar app performs the insertion under its own permissions and
+privacy policy, and DayRows never receives the resulting event or learns which calendar
+you chose.
 
 DayRows also declares the install-time permissions `READ_SYNC_SETTINGS` and
 `READ_SYNC_STATS` to respect disabled account synchronization and observe calendar
@@ -99,10 +100,10 @@ it. That user-initiated request contains the event URI/ID, instance start and en
 times, and all-day flag. The receiving calendar app handles that request under
 its own permissions and privacy policy.
 
-When you tap an empty cell, DayRows asks an installed calendar application to
-create a new event there. That user-initiated request contains the target
-calendar's identifier and the selected day's start and end time. The receiving
-calendar app creates the event under its own permissions and privacy policy.
+When you tap the + next to a day, DayRows asks an installed calendar application to
+create a new event there. That user-initiated request contains the selected day and that
+day's start and end time, and no calendar identifier. The receiving calendar app creates
+the event under its own permissions and privacy policy.
 
 Calendar apps and account synchronization services, including Google services
 when configured on your device, may synchronize the original calendar data

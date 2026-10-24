@@ -36,7 +36,7 @@ import java.time.format.FormatStyle
 fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int) -> Unit,
                    onNavigate: (Int) -> Unit, onToday: () -> Unit, onRefresh: () -> Unit,
                    onRetry: () -> Unit, onEvent: (EventInstance) -> Unit, onAccountAccess: () -> Unit,
-                   onNewEvent: (DeviceCalendar, LocalDate) -> Unit, onLabel: (String, String) -> Unit) {
+                   onNewEvent: (LocalDate) -> Unit, onLabel: (String, String) -> Unit) {
     val matrix = state.matrix
     val configuration = LocalConfiguration.current
     val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE

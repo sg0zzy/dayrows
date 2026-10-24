@@ -698,7 +698,8 @@ different calendar than the one that was tapped. DayRows previously offered the
 so tapping a hidden row produced exactly the reported symptom. DayRows now
 offers the new-event action only for calendars that are both writable and
 visible (`DeviceCalendar.canBePreselected`), and keeps the plain placeholder
-for the others.
+for the others. (Superseded the same day: see “New-event action moves to the day
+header” below, which removes that gate by naming no calendar at all.)
 
 The Google Calendar case was re-checked against the dex of the app installed on
 the test device (API 36 image, `com.google.android.calendar`). The insert path
@@ -769,3 +770,45 @@ half of the second fix rests on unit tests and platform source rather than on an
 observed grant. No permission, identity, version, preference-format or
 provider-write change. No commits or publication; previously recorded MUST gaps
 remain unresolved.
+
+### New-event action moves to the day header (2026-10-24)
+
+Gating the row action made the marker honest only on a receiving app that reads
+`calendar_id`. Google Calendar reads none, so on the common handset a `+` inside a
+calendar row still promised a calendar DayRows cannot deliver. The requested
+new-event action therefore left the calendar rows and became one marker per day
+column: it sits at the trailing edge of the date header, shares the cells'
+horizontal scroll state, and the date text itself stays non-clickable. The minimum
+column width now measures the marker as well as the localized date, so a longer
+locale cannot slide the date under it.
+
+The handoff names the day and the slot and no longer names a calendar.
+`NewEventDraft` lost `calendarId`, `newEventDraft` takes only the day and the zone,
+and `MainActivity.openNewEvent` sends `ACTION_INSERT` on the events URI with
+`beginTime` and `endTime`. `DeviceCalendar.isEditable` and `canBePreselected` were
+deleted together with their only two consumers, `calendar_not_editable` was removed
+from the English and Italian resources, and every row now renders an empty cell the
+same way. `accessLevel` and `visible` stay on `DeviceCalendar`: they feed the
+calendar identity fingerprint and the debug discovery log, so dropping them would
+change calendar identity keys.
+
+PRIVACY.md twice stated that the handoff carries the target calendar's identifier.
+It no longer does; both passages now describe the reduced content — the day, its
+start and end time, no calendar identifier — and that DayRows never learns which
+calendar the user picks. That is a privacy reduction, made in the same change that
+makes it true. No permission, identity, version or preference-format change, and
+the app remains read-only to the provider.
+
+Verified with the exact pinned checkout, 76 debug unit tests, debug lint and
+managed debug packaging, plus the 83 infrastructure tests. On the API 36 image the
+accessibility hierarchy of the two-day matrix showed exactly two action nodes,
+`Add an event on Sat 24 Oct` and `Add an event on Sun 25 Oct`, each 40 dp square,
+and no action on any calendar cell. With a throwaway receiver registered for the
+insert request and the device's calendar app handler disabled, the marker emitted
+`ACTION_INSERT` on `content://com.android.calendar/events`, type
+`vnd.android.cursor.dir/event`, extras exactly `beginTime=1792825200000` and
+`endTime=1792828800000` (2026-10-24 09:00–10:00 Europe/Rome) and no calendar
+identifier. The device component was re-enabled afterwards. README and PRIVACY.md
+were corrected in the same change; TERMS.md needed no change. Nothing was committed
+or published by this entry; earlier MUST gaps remain open.
+

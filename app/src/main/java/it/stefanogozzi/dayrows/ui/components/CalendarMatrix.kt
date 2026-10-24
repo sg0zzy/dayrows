@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -29,7 +30,7 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance) -> Unit,
-                   onNewEvent: (DeviceCalendar, LocalDate) -> Unit, onCalendarName: (DeviceCalendar) -> Unit,
+                   onNewEvent: (LocalDate) -> Unit, onCalendarName: (DeviceCalendar) -> Unit,
                    modifier: Modifier = Modifier) {
     val scroll = rememberScrollState()
     val locale = LocalConfiguration.current.locales[0]
@@ -40,7 +41,7 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
         matrix.dates.maxOf { date ->
             textMeasurer.measure(dateFormat.format(date), style = headerStyle, maxLines = 1).size.width
         }.toDp()
-    } + 16.dp
+    } + 16.dp /* cell padding */ + 40.dp /* the day's new-event marker */
     BoxWithConstraints(modifier) {
         val nameWidth = (maxWidth * .28f).coerceIn(88.dp, 140.dp)
         val dayWidth = (if (matrix.dates.size == 7) 164.dp else (maxWidth - nameWidth) / matrix.dates.size)
@@ -52,10 +53,20 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
                 }
                 Row(Modifier.horizontalScroll(scroll)) {
                     matrix.dates.forEach { date ->
+                        // The new-event action belongs to the day, not to a calendar row: no receiving
+                        // app guarantees it will use the calendar DayRows would name, so the marker
+                        // promises only the day. It sits at the trailing edge of the column and the date
+                        // text stays non-clickable, so reading a label never starts an event.
+                        val description = stringResource(R.string.add_event_on_date, dateFormat.format(date))
                         Box(Modifier.width(dayWidth).heightIn(min = 36.dp).padding(horizontal = 8.dp, vertical = 6.dp),
                             contentAlignment = Alignment.CenterStart) {
-                            Text(dateFormat.format(date), style = headerStyle, maxLines = 1,
+                            Text(dateFormat.format(date), style = headerStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 color = if (date == LocalDate.now(zone)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            Box(Modifier.align(Alignment.CenterEnd).size(40.dp).clip(CircleShape)
+                                .clickable { onNewEvent(date) }.semantics { contentDescription = description },
+                                contentAlignment = Alignment.Center) {
+                                Text("+", style = headerStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
@@ -77,30 +88,17 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
                                     .semantics { contentDescription = nameDescription })
                         }
                         Row(Modifier.horizontalScroll(scroll).height(IntrinsicSize.Min)) {
-                            row.cells.forEachIndexed { index, events ->
-                                val date = matrix.dates[index]
-                                val editable = row.calendar.canBePreselected()
-                                val description = stringResource(R.string.add_event_on_date, dateFormat.format(date))
+                            row.cells.forEach { events ->
                                 Row(Modifier.width(dayWidth).fillMaxHeight()) {
                                     VerticalDivider()
-                                    // An empty cell of an editable calendar is one tap target; a read-only
-                                    // calendar keeps the plain placeholder and no action.
-                                    Column(Modifier.weight(1f)
-                                        .then(if (events.isEmpty() && editable)
-                                            Modifier.clickable { onNewEvent(row.calendar, date) }
-                                                .semantics { contentDescription = description } else Modifier)
-                                        .heightIn(min = 48.dp)
+                                    // An empty cell only says the day is free. The new-event marker lives in
+                                    // the day header, so a row never offers an action its calendar might not
+                                    // be used for, and every row reads the same way.
+                                    Column(Modifier.weight(1f).heightIn(min = 48.dp)
                                         .padding(horizontal = 7.dp, vertical = 6.dp),
                                         verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                         if (events.isEmpty()) {
-                                            if (editable) {
-                                                // The marker sits in the middle of the empty cell.
-                                                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                                                    Text("+", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                            } else {
-                                                Text("—", Modifier.padding(6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
+                                            Text("—", Modifier.padding(6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         events.forEach { event ->
                                             EventCell(event, zone, onEvent)
