@@ -4,6 +4,7 @@ package it.stefanogozzi.dayrows
 import android.Manifest
 import android.accounts.Account
 import android.accounts.AccountManager
+import android.app.Activity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,7 +38,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import it.stefanogozzi.dayrows.data.*
 import it.stefanogozzi.dayrows.domain.SyncAccountChoice
-import it.stefanogozzi.dayrows.domain.isEditable
+import it.stefanogozzi.dayrows.domain.canBePreselected
+import it.stefanogozzi.dayrows.domain.chooserGrant
+import it.stefanogozzi.dayrows.domain.needingAccountAccess
 import it.stefanogozzi.dayrows.domain.newEventDraft
 import it.stefanogozzi.dayrows.ui.*
 import it.stefanogozzi.dayrows.ui.theme.DayRowsTheme
@@ -79,6 +82,11 @@ class MainActivity : ComponentActivity() {
                 // account type has no authenticator to show. Either way the remaining
                 // accounts still get their own turn, so one unusable type cannot block
                 // the others.
+                // A completed chooser authorizes the account it was opened for, which is the
+                // head of the queue; remembering it keeps a later hard refresh from asking for
+                // the same source again.
+                model.authorizeAccounts(chooserGrant(
+                    result.resultCode == Activity.RESULT_OK, accountQueue.firstOrNull()))
                 val remaining = accountQueue.drop(1)
                 accountQueue = remaining
                 if (remaining.isEmpty()) {
@@ -110,11 +118,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
             /** A hard refresh first asks which accounts to synchronize. Accounts that are
-             * already visible are used as they are; the others need the platform chooser. */
+             * already visible are used as they are; the others need the platform chooser.
+             * The dialog opens only after the account list is current, so a source the
+             * user already authorized is never shown as needing permission again. */
             fun requestHardRefresh() {
                 if (accountAccessInProgress) return
-                model.loadSyncAccounts()
-                showAccountDialog = true
+                model.loadSyncAccounts { showAccountDialog = true }
             }
             val allowAccountSync: () -> Unit = { requestHardRefresh() }
             DisposableEffect(model) {
@@ -165,9 +174,10 @@ class MainActivity : ComponentActivity() {
                             onDismiss = { showAccountDialog = false },
                             onConfirm = { chosen ->
                                 showAccountDialog = false
-                                // Accounts that already have visibility are used straight away;
-                                // the others need the platform chooser, one at a time.
-                                val needing = chosen.filter { !it.visible }
+                                // Accounts that already have visibility, and accounts the user
+                                // authorized earlier, are used straight away; only the rest
+                                // need the platform chooser, one at a time.
+                                val needing = chosen.needingAccountAccess(state.authorizedAccounts)
                                 pendingSyncAccounts = chosen
                                 if (needing.isEmpty()) {
                                     model.hardRefresh(chosen)
@@ -195,12 +205,16 @@ class MainActivity : ComponentActivity() {
     /** Hands a pre-filled new event to an installed calendar app. DayRows holds only READ_CALENDAR
      * and never writes to the provider, so the receiving app performs the insertion itself.
      *
-     * The target calendar is named with the `calendar_id` extra, which is the platform
-     * convention the AOSP calendar app reads. The mime type is the one both the platform
-     * and Google Calendar declare for an insert request, so the same intent reaches
-     * either app. */
+     * The target calendar is named with the `calendar_id` extra, the platform convention the AOSP
+     * calendar app reads. Google Calendar reads no calendar-selecting extra at all and picks the
+     * first calendar of the list it builds from its own writable visible calendars, so a calendar
+     * outside that list cannot be honored by any receiving app: [canBePreselected] keeps those
+     * calendars out of the insert path instead of silently landing on another calendar.
+     *
+     * The mime type is the one both the platform and Google Calendar declare for an insert
+     * request, so the same intent reaches either app. */
     private fun openNewEvent(calendar: DeviceCalendar, date: LocalDate) {
-        if (!calendar.isEditable()) {
+        if (!calendar.canBePreselected()) {
             Toast.makeText(this, R.string.calendar_not_editable, Toast.LENGTH_LONG).show()
             return
         }

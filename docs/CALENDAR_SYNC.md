@@ -49,6 +49,13 @@ optional
 limited to provider accounts still needing visibility. Choose an existing account;
 repeat for additional accounts. Canceling preserves local display. The OS retains
 the visibility grant; DayRows does not store a second account configuration.
+DayRows does remember which accounts the chooser granted it, so that a source
+already authorized is not sent to the chooser a second time: the grant is
+recorded by AccountManagerService, but an account type without an authenticator
+on the device never appears in the visibility-filtered account list, so the
+grant would otherwise be invisible on the next hard refresh. The account list
+shown in the checklist is read before the checklist is shown, so it always
+reflects the current authorization state.
 A manifest `<queries>` intent for `android.content.SyncAdapter`, plus a scoped
 `com.google.android.calendar` package query, exposes adapter packages to sync APIs
 without `QUERY_ALL_PACKAGES` or another permission.

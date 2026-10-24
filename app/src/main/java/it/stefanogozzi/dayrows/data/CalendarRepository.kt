@@ -110,7 +110,9 @@ class AndroidCalendarRepository(private val resolver: ContentResolver,
     override suspend fun syncAccounts(): List<SyncAccountChoice> = withContext(Dispatchers.IO) {
         // The provider knows which accounts own calendars; AccountManager knows which of
         // them DayRows may see. A pair is "visible" when the account already appears in
-        // the visibility-filtered account list for its type.
+        // the visibility-filtered account list for its type: AccountManager lists an
+        // account only when the user granted DayRows visibility for it, and the grant
+        // is stored by AccountManagerService, so a granted account stays listed.
         readCalendarSyncAccounts(resolver).map { (name, type) ->
             val visible = accounts.getAccountsByType(type).any { it.name == name }
             SyncAccountChoice(name, type, visible)

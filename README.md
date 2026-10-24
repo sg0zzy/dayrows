@@ -52,8 +52,11 @@ calendar access. English and Italian privacy/terms are included in the same file
 Tap an event to open its occurrence in an installed calendar app. Tap an empty
 cell to start a new event on that day in that calendar: DayRows opens the
 calendar app with the day, a one-hour slot and the calendar already filled in.
-The + marker sits in the middle of the cell. Only calendars you can edit show
-this action; read-only and free/busy calendars keep a plain placeholder.
+The + marker sits in the middle of the cell. Only calendars you can edit and
+that the receiving app offers for a new event show this action; read-only,
+free/busy and hidden calendars keep a plain placeholder. A hidden calendar is
+not in the list a calendar app presents, so offering it would make the app
+select a different calendar than the one you tapped.
 Continued
 entries use ↤ / ↦; `24:00` marks an exclusive midnight end. All-day events use
 the provider’s UTC date semantics. Recurrences come from `CalendarContract.Instances`.
@@ -66,7 +69,9 @@ synchronization, never opens the account chooser and never touches the network.
 **Refresh calendars** in Settings is a hard refresh: it asks which accounts to
 synchronize, using a checklist where you may select one account or several.
 Accounts DayRows cannot see yet are authorized through Android’s own account
-chooser, one at a time, because only the system can grant that access.
+chooser, one at a time, because only the system can grant that access. A source
+you already authorized is not asked for again: DayRows remembers the accounts
+the chooser granted it and goes on with the reload.
 
 ## Development and builds
 

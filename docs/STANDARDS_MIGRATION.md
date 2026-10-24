@@ -679,3 +679,93 @@ Google Calendar event-template URL, which needs a `VIEW` intent and therefore
 cannot be combined with the `ACTION_INSERT` the platform's insert contract
 defines. It also confirmed that `endTime` **is** read, so the day and the
 one-hour slot reach Google Calendar correctly even though the calendar does not.
+
+### Preselected calendar and repeated account prompts (2026-10-24)
+
+Two user-reported defects were investigated against platform sources and the
+Google Calendar dex, then fixed.
+
+**The preselected calendar.** The AOSP calendar app selects the target
+calendar for a new event from the `calendar_id` intent extra
+(`EditEventActivity.getEventInfoFromIntent` reads `Events.CALENDAR_ID`), but it
+only offers calendars matching
+`access_level >= CAL_ACCESS_CONTRIBUTOR AND visible = 1`
+(`EditEventHelper.CALENDARS_WHERE_WRITEABLE_VISIBLE`). A hidden calendar
+(`visible = 0`) is therefore never in that list, and
+`EditEventView.findSelectedCalendarPosition` falls back to position 0 — a
+different calendar than the one that was tapped. DayRows previously offered the
+`+` action for every calendar with `access_level >= 500`, hidden ones included,
+so tapping a hidden row produced exactly the reported symptom. DayRows now
+offers the new-event action only for calendars that are both writable and
+visible (`DeviceCalendar.canBePreselected`), and keeps the plain placeholder
+for the others.
+
+The Google Calendar case was re-checked against the dex of the app installed on
+the test device (API 36 image, `com.google.android.calendar`). The insert path
+(`LaunchInfoActivity` → `Lcal/ren;` → `Lcal/reo;` → `AllInOneCalendarActivity` →
+`Lcal/pmm;.b`) reads the intent extras `allDay`, `beginTime`, `endTime`,
+`title`, `eventLocation`, `description`, `rrule`, `availability`,
+`accessLevel`, `eventTimezone`, `android.intent.extra.EMAIL` and
+`auto_add_meet_conference`, and no calendar identifier. A complete scan of the
+`Uri.getQueryParameter` call sites in the whole APK found 23 call sites and 18
+distinct parameter names; none of them selects a calendar, and `src`/`targ`
+(the web client's calendar selectors) are absent. The `cid` parameter is read
+only by the add-calendar handler `Lcal/rfe;`, which base64-decodes it and sets
+the unrelated `com.google.android.calendar.ADD_CALENDAR` action. The `proto`
+and `proto_base64` intent extras parse into a `CalendarIntentProtos` message
+whose account sub-message is applied to the target account; the model's
+calendar-id field has no writer on that path, so it cannot carry a calendar
+either. Google Calendar therefore continues to choose its own calendar, which
+is recorded in README and docs/CALENDAR_SYNC.md as an honest limitation.
+
+**Repeated account prompts.** The hard refresh re-derived each source's
+authorization state from `AccountManager.getAccountsByType`, which lists an
+account only when its stored visibility for the calling package is
+`VISIBLE` or `USER_MANAGED_VISIBLE`
+(`AccountManagerService.filterAccounts`). The grant itself is durable — the
+platform chooser stores it in the accounts database and
+`AccountManagerService.resolveAccountVisibility` returns the stored value
+before any default is applied — but the *list* was read before the dialog
+opened, so a source the user had just authorized was still shown from the
+previous snapshot, and the chooser was opened for it again. Two defects were
+corrected: the account list is now read before the checklist is shown rather
+than concurrently with it, and the accounts the chooser granted are remembered
+so that a source already authorized is never sent to the chooser again.
+
+`AccountManager.getAccountVisibility` was evaluated as an alternative and
+rejected: it throws `SecurityException` for a third-party app whose signature
+does not match the authenticator
+(`AccountManagerService.getAccountVisibility` calls `isAccountManagedByCaller`),
+which was confirmed on the emulator with a probe package
+("uid 10217 cannot get secrets for accounts of type: com.google"). The
+visibility-filtered account list is the usable signal.
+
+Verification: the pinned checkout was re-verified with
+`python3 scripts/check_standards.py` (20 files at `e3111c4e9dc652f833a5f2ba5232c292646e7969`).
+Managed debug packaging, 82 debug unit tests and debug lint passed, as did the 83
+repository infrastructure tests. Each fix was regression-checked by mutating the
+production predicate and counting the tests that then failed: dropping `visible`
+from `canBePreselected` (1 failure), dropping the remembered-authorization term
+from `needingAccountAccess` (3), and recording a grant for a cancelled chooser
+result (1); the restored source passes with zero failures.
+
+On the API 36 test image the provider rows and the application's own discovery log
+agreed for a hidden calendar (`id=2 … accessLevel=700 visible=false`), confirming
+DayRows reads the flag the preselection rule depends on. A throwaway probe package
+confirmed on-device that `AccountManager.getAccountVisibility` is refused for this
+signature and that an unauthorized account is absent from `getAccountsByType`.
+
+Both fixes were then observed in the running debug build through the accessibility
+hierarchy. With one visible and one hidden calendar selected, the visible row held
+two `Add an event on …` cells (the two-day period) and the hidden row held none,
+only its `—` placeholders. The hard-refresh checklist was already populated with
+both accounts on the first use rather than opening from an earlier snapshot, and
+confirming it launched one account chooser per selected account in queue order —
+each closing immediately because the `LOCAL` type has no authenticator, which
+grants nothing — followed by the provider reload. What a physical device still has
+to confirm is a chooser result the user actually completes: the test image cannot
+sign into an account whose authenticator owns the account type, so the durable-grant
+half of the second fix rests on unit tests and platform source rather than on an
+observed grant. No permission, identity, version, preference-format or
+provider-write change. No commits or publication; previously recorded MUST gaps
+remain unresolved.

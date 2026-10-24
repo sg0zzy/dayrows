@@ -26,6 +26,10 @@ data class CalendarUiState(
     val newCalendars: Int? = null,
     /** The provider accounts available for synchronization, with their visibility state. */
     val syncAccounts: List<SyncAccountChoice> = emptyList(),
+    /** The accounts the user already authorized for DayRows. A source in this set is
+     * never asked for again, even when the account type has no authenticator on this
+     * device and the account therefore never appears in AccountManager's account list. */
+    val authorizedAccounts: Set<AccountAuthorization> = emptySet(),
 ) {
     val matrix: CalendarMatrix get() = CalendarMatrixBuilder().build(calendars, events,
         visibleDates(start, preferences.dayCount), preferences, zone)
@@ -99,15 +103,34 @@ class CalendarViewModel(private val repository: CalendarRepository, private val 
     fun refreshLight() { refresh() }
 
     /** Loads the provider's accounts and their visibility, for the hard-refresh account
-     * selection dialog. */
-    fun loadSyncAccounts() {
+     * selection dialog.
+     *
+     * [onLoaded] runs after the new list is in the state, so a caller that opens the
+     * dialog from the callback shows the current visibility and never the previous
+     * snapshot. A stale list makes an already authorized account look unauthorized and
+     * sends the user through the account chooser a second time. */
+    fun loadSyncAccounts(onLoaded: () -> Unit = {}) {
         viewModelScope.launch {
             try {
                 val accounts = repository.syncAccounts()
                 _state.update { it.copy(syncAccounts = accounts) }
+                onLoaded()
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { _state.update { it.copy(error = LoadError.CALENDARS) } }
         }
+    }
+
+    /** Records that the user authorized these accounts for DayRows.
+     *
+     * The platform chooser is the only way to grant account visibility, and its grant
+     * is stored by AccountManagerService. An account type without an authenticator on
+     * the device never appears in AccountManager's filtered account list, so the grant
+     * would be invisible afterwards and the next hard refresh would ask for it again.
+     * Remembering it here keeps an authorized source from being prompted twice. */
+    fun authorizeAccounts(accounts: List<SyncAccountChoice>) {
+        if (accounts.isEmpty()) return
+        _state.update { it.copy(authorizedAccounts = it.authorizedAccounts +
+            accounts.map { choice -> AccountAuthorization(choice.name, choice.type) }) }
     }
 
     /** A hard refresh: requests synchronization for the chosen accounts and reloads

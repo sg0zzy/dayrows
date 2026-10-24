@@ -28,6 +28,25 @@ class NewEventDraftTest {
         assertFalse(calendar(access = 300).isEditable())
     }
 
+    /** A hidden calendar is not in the list a calendar app offers for a new event, so the
+     * app cannot preselect it and would fall back to a different calendar. */
+    @Test fun aHiddenCalendarCannotBePreselected() {
+        val hidden = calendar().copy(visible = false)
+        assertTrue(hidden.isEditable())
+        assertFalse(hidden.canBePreselected())
+    }
+
+    /** A visible calendar the user may write to can be preselected. */
+    @Test fun aVisibleWritableCalendarCanBePreselected() {
+        assertTrue(calendar().canBePreselected())
+    }
+
+    /** A read-only calendar is not offered for a new event, visible or not. */
+    @Test fun aReadOnlyCalendarCannotBePreselected() {
+        assertFalse(calendar(access = 300).copy(visible = true).canBePreselected())
+        assertFalse(calendar(access = 300).copy(visible = false).canBePreselected())
+    }
+
     @Test fun draftCarriesTheCalendarAndTheRequestedDay() {
         val draft = newEventDraft(calendar(id = 42), date, rome)
         assertEquals(42, draft.calendarId)

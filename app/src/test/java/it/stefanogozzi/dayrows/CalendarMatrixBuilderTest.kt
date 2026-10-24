@@ -86,6 +86,17 @@ class CalendarMatrixBuilderTest {
         assertEquals(LocalDate.of(2028, 3, 1), visibleDates(LocalDate.of(2028, 2, 24), 7).last())
     }
     @Test fun emptyCalendarStillHasRow() { assertEquals(listOf(0, 0), matrix(emptyList()).rows.single().cells.map { it.size }) }
+
+    /** A hidden calendar keeps its row, because its events are still read from the provider,
+     * and the row carries the calendar unchanged so the cells can tell a hidden row from a
+     * preselectable one. Losing either flag would offer a hidden row the new-event action that
+     * lands on a different calendar. */
+    @Test fun hiddenCalendarKeepsItsRowAndItsCalendarUnchanged() {
+        val writable = calendar(1).copy(accessLevel = 700, visible = true)
+        val hidden = calendar(2).copy(accessLevel = 700, visible = false)
+        val rows = matrix(emptyList(), calendars = listOf(writable, hidden)).rows
+        assertEquals(listOf(writable, hidden), rows.map { it.calendar })
+    }
     @Test fun noSelectedCalendarsHasNoRows() {
         assertTrue(matrix(listOf(event()), prefs = UserPreferences()).rows.isEmpty())
     }

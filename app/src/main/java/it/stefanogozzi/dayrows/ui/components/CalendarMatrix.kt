@@ -79,7 +79,7 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
                         Row(Modifier.horizontalScroll(scroll).height(IntrinsicSize.Min)) {
                             row.cells.forEachIndexed { index, events ->
                                 val date = matrix.dates[index]
-                                val editable = row.calendar.isEditable()
+                                val editable = row.calendar.canBePreselected()
                                 val description = stringResource(R.string.add_event_on_date, dateFormat.format(date))
                                 Row(Modifier.width(dayWidth).fillMaxHeight()) {
                                     VerticalDivider()
