@@ -97,13 +97,14 @@ def release_body(repository: str, tag: str, version: str, notes_file: str,
     lines.append("- [`SHA256SUMS.txt`](../../releases/download/"
                  f"{tag}/SHA256SUMS.txt) (checksums for all release assets)")
     lines += ["", "## Google Play", "",
-              "The `.aab` above is the Play upload package: download it and upload it",
-              "to the internal testing track in Play Console (manual step; see",
-              "docs/AUDIT_REPORT.md §F). Then, in the same release's [Debug symbols]",
-              "step, upload the `symbols.zip` (native `.so` set, `lib/<abi>` at the zip",
-              "root) and, in the **deobfuscation file** slot, the `mapping.txt` asset.",
-              "Play acceptance is a separate destination state and is not implied by",
-              "this GitHub release."]
+              "The `.aab` above is the Play upload package: the `Upload to Google",
+              "Play` workflow delivers these exact bytes to a draft release on the",
+              "selected track (never production, never a rollout). No separate symbol",
+              "or mapping upload is sent: an app bundle carries its R8 mapping and any",
+              "native debug symbols inside it, which is what Play uses to retrace",
+              "crashes; `symbols.zip` and `mapping.txt` stay published as provenance",
+              "for offline analysis. Play acceptance is a separate destination state",
+              "and is not implied by this GitHub release."]
     return "\n".join(lines) + "\n"
 
 

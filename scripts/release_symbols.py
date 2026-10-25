@@ -1,27 +1,32 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Package Play native debug symbols for the current release bundle.
+"""Package an audit copy of the native libraries in a release bundle.
 
-Google Play Console's [Debug symbols] upload validates a zip whose root holds
-<ABI directories directly:
+The zip holds the exact `.so` bytes shipped inside the app bundle, one Android
+ABI directory per top-level entry:
 
-    lib/<abi>/<lib>.so          # e.g. lib/arm64-v8a/libexample.so
+    <abi>/<lib>.so            # e.g. arm64-v8a/libdatastore_shared_counter.so
 
-Entries under any other top-level directory (a `symbols/` wrapper, an embedded
-mapping file, etc.) make Play reject the archive with "invalid directory";
-Play accepts only Android ABIs at the root. For a Kotlin/Compose app without
-an NDK build the only native symbol material is the merged set shipped inside
-the bundle, so this tool packages exactly that set, verbatim. The R8/Proguard
-mapping is NOT part of this zip: Play takes it in the separate deobfuscation
-file slot as a plain .txt, which the release pipeline stages too.
+This asset is provenance, not a Play upload. An Android App Bundle carries its
+own deobfuscation data: AGP embeds the R8 mapping at
+BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map, and native
+debug symbols exist only when android.buildTypes.release.ndk.debugSymbolLevel is
+set, in which case AGP packs them into the bundle too. Google Play reads both
+from the bundle, so neither is uploaded separately; see
+docs/GOOGLE_PLAY_UPLOAD.md. scripts/play_upload.py re-verifies that claim from
+the bundle bytes and refuses a delivery where it stops being true.
+
+DayRows ships only stripped prebuilt libraries (there is no NDK build), so no
+debug symbols exist to deliver today; this package records exactly which native
+bytes ship, which is what makes that statement checkable.
 
 Usage:
   python3 scripts/release_symbols.py build --aab <app-release.aab> --output <zip>
   python3 scripts/release_symbols.py check --zip <zip> --aab <app-release.aab>
 
-The build writes MANIFEST.txt (archived-bundle digest + per-entry size/SHA-256)
-purely as verifiable provenance; `check` re-hashes every packaged file against
-those records and against the source bundle.
+`build` prints a provenance manifest (bundle digest plus per-entry size and
+SHA-256); `check` re-hashes every packaged file against the source bundle and
+enforces the published layout so release assets stay byte-comparable.
 
 Exit status 0 means the requested operation passed; any failure prints a
 reason and exits 1.
@@ -44,10 +49,10 @@ MANIFEST_HEADER = """DayRows native debug symbols
 Generated: {generated}
 Application archive: {arch}
 Archive SHA-256: {arch_sha256}
-Layout: lib/<abi>/<library>.so at the zip root (Play [Debug symbols] format)
+Layout: <abi>/<library>.so at the zip root (frozen release-asset layout)
 Libraries: {count} ({abis})
-The .so bytes are copied verbatim from the app bundle. Play matches native
-crash/ANR frames against these files in [Debug symbols].
+The .so bytes are copied verbatim from the app bundle. This package is release
+provenance: Google Play takes no separate symbol upload for an app bundle.
 """
 
 
@@ -86,8 +91,9 @@ def package(aab_path: str, output: str, generated: str) -> None:
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as package_file:
         for name, payload in entries:
             _, _, abi, library = name.split("/", 3)
-            # Play's validator accepts ONLY Android ABI directories at the zip root
-            # (arm64-v8a/, x86_64/, ...). No lib/ prefix, no manifest, no mapping.
+            # Release-asset layout is frozen by the published releases: Android ABI
+            # directories at the zip root (arm64-v8a/, x86_64/, ...), nothing else.
+            # No lib/ prefix, no manifest, no mapping.
             package_file.writestr(f"{abi}/{library}", payload)
 
     # Re-open and verify every packaged library against the manifest record.
@@ -118,8 +124,8 @@ def check(symbols_zip: str, aab_source: str) -> None:
         raise SystemExit(f"app bundle not found: {bundle}")
 
     with zipfile.ZipFile(symbols) as zipped:
-        # Layout gate: exactly the Play format — ABI directories at the zip root,
-        # nothing else (no MANIFEST, no lib/ prefix, no mapping).
+        # Layout gate: the published release-asset format — ABI directories at the
+        # zip root and nothing else (no MANIFEST, no lib/ prefix, no mapping).
         invalid_top = {name.split("/")[0] for name in zipped.namelist()
                        if name.split("/")[0] not in ABIS
                        or "/" not in name  # stray top-level file
@@ -127,7 +133,8 @@ def check(symbols_zip: str, aab_source: str) -> None:
         if invalid_top:
             raise SystemExit(
                 "invalid symbol layout: unexpected entries " + ", ".join(sorted(invalid_top))
-                + "; Play requires only <abi>/<library>.so at the zip root (Android ABIs only)")
+                + "; the release asset allows only <abi>/<library>.so at the zip root "
+                  "(Android ABIs only)")
         listed = [name for name in zipped.namelist() if re.fullmatch(r"[^/]+/[^/]+\.so", name)]
         abi_reject = {name.split("/")[0] for name in listed} - ABIS
         if abi_reject:

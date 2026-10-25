@@ -9,10 +9,10 @@ on:
         required: true
         type: string
       track:
-        description: 'Destination track; creates a draft, without rollout'
+        description: 'Draft destination track; never a rollout and never production'
         type: choice
         default: internal
-        options: [internal, alpha, beta, production]
+        options: [internal, alpha, beta]
       dry_run:
         description: 'Verify release files only; do not authenticate or contact Google Play'
         type: boolean
@@ -71,8 +71,9 @@ jobs:
           create_credentials_file: false
           export_environment_variables: false
 
-      - name: Upload AAB, native symbols and R8 mapping as a Play draft
+      - name: Upload signed AAB as a Google Play draft
         if: ${{ !inputs.dry_run }}
+        id: upload
         env:
           PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: python3 scripts/play_upload.py upload --directory "$DELIVERY_DIR"
@@ -88,7 +89,14 @@ jobs:
 
       - name: Delivery summary
         if: ${{ always() }}
+        env:
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           if [ -f "$DELIVERY_DIR/delivery.json" ]; then
-            python3 scripts/play_upload.py summary --directory "$DELIVERY_DIR" >> "$GITHUB_STEP_SUMMARY"
+            args=(--directory "$DELIVERY_DIR" --upload-outcome "$UPLOAD_OUTCOME")
+            if [ "$DRY_RUN" = "true" ]; then
+              args+=(--dry-run)
+            fi
+            python3 scripts/play_upload.py summary "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
           fi

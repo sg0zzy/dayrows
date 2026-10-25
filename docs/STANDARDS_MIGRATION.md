@@ -854,3 +854,81 @@ Publishing the GitHub release and any Play upload remain the publisher's
 decisions and are not claimed here. Previously recorded MUST gaps — settings
 export/restore and the official signing/update-history inventory — remain open.
 
+### Google Play bundle delivery repair (2026-10-25)
+
+Two live dispatches of `play-upload.yml` for v0.1.5 (versionCode 6, track
+`internal`) failed while the job summary still reported `prepared`, which the
+publisher read as success. Two independent defects were confirmed and repaired; no
+credential, signing identity, version or artifact byte changed.
+
+1. `POST …/apks/6/deobfuscationFiles/nativeCode` returned HTTP 400. The bundle
+   upload itself had succeeded; the script then treated the bundle as an APK
+   release and attached `symbols.zip` and `mapping.txt` to
+   `apks/{versionCode}/deobfuscationFiles/{type}`, an endpoint documented to attach
+   to the specified **APK**. No APK exists for a bundle versionCode, so Google
+   rejected the first attachment, the run abandoned its edit, and nothing
+   persisted — matching the missing draft in Play Console. The summary printed the
+   stale `prepared` receipt because that step runs with `if: always()` and the
+   upload step never reached a state worth reporting.
+2. Two earlier runs failed closed in authentication because
+   `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` resolved to nothing for the `google-play`
+   environment. Failing closed is correct per pinned SECURITY (“Required checks
+   MUST fail closed on unavailable secrets”); it is recorded only as history and
+   was resolved by the publisher before this change.
+
+Official contract verified on 2026-10-25 before implementing, as pinned
+DISTRIBUTION requires: an AAB is uploaded with
+`POST /upload/…/edits/{editId}/bundles` as `application/octet-stream`
+([bundles.upload](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.bundles/upload));
+`deobfuscationfiles.upload` keys on `apkVersionCode` and “attaches to the specified
+APK”
+([deobfuscationfiles.upload](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.deobfuscationfiles/upload));
+the live v3 discovery document contains no `binaries`/`binarySymbols` method; the
+bundle format carries `BUNDLE-METADATA/…/proguard.map`
+([app-bundle-format](https://developer.android.com/guide/app-bundle/app-bundle-format));
+for app bundles with AGP ≥ 4.1 native symbols ride inside the bundle
+([include-native-symbols](https://developer.android.com/build/include-native-symbols));
+an edit persists only on commit and `changesNotSentForReview=true` leaves changes
+unsubmitted ([edits](https://developers.google.com/android-publisher/edits),
+[commit](https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit));
+a `draft` release without `userFraction` is the documented persisted-but-not
+rolled-out shape ([edits.tracks](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks)).
+Treated as UNVERIFIED and not relied upon: a machine-readable
+duplicate-versionCode error code, and the documented track id for internal testing
+(the API accepted `internal` for this app).
+
+Local evidence from the exact staged v0.1.5 bytes: the bundle’s embedded
+`proguard.map` SHA-256 is
+`65e6f31f14e5d125261b03aba11af3d39562d0f21f61035307fff1b7075d128a`, identical to
+the published `mapping.txt` digest, so Play can retrace Java/Kotlin traces with no
+attachment; the bundle contains no `native_debug_symbols/` entry and
+`readelf --sections` confirms all eight shipped `.so` files are stripped, so no
+symbolication capability was removed — `symbols.zip` was a verbatim copy of those
+stripped libraries.
+
+Delivered: the uploader uploads the AAB only, verifies the bundle is
+self-describing before contacting Play, validates then commits with
+`changesNotSentForReview=true`, confirms the draft by reading committed state in a
+separate read-only edit, distinguishes artifact-uploaded / edit-committed /
+draft-confirmed / failed-before-persistence / remote-state-uncertain, absorbs a
+concurrently published versionCode by re-reading committed state instead of
+re-uploading or bumping a version, surfaces Google’s `status`/`reason`/`message`
+with operation, artifact, versionCode, track and edit context while redacting the
+token, and the job summary reports the actual state and the upload step outcome.
+`production` is no longer an offered destination track: a production draft is one
+console click from rollout, so dispatch stays limited to `internal`, `alpha` and
+`beta`. Completion means “draft committed and read back”, never submitted for
+review and never rolled out, satisfying pinned DISTRIBUTION’s declaration rule.
+
+Verification: `python3 -m unittest discover -s scripts/tests` → 104 tests pass (47
+Play tests, now driving a stateful Edits fake that fails the suite if any APK-only
+endpoint is touched); `./gradlew testDebugUnitTest lintDebug --offline` → 76 unit
+tests, 0 failures, lint 0 errors with 8 pre-existing warnings;
+`python3 scripts/check_standards.py /tmp/dayrows-standards` verified 20 files at
+the adopted commit `e3111c4e9dc652f833a5f2ba5232c292646e7969`. No live Play call
+was made for this change; real delivery remains the publisher’s manual dispatch.
+
+Remaining MUST gaps are unchanged: settings export/restore, the official
+signing/update-history inventory, and the recorded release-notes compare-link
+defect. v0.1.5 delivery stays open until a non-dry dispatch reports
+`uploaded_draft`.

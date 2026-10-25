@@ -200,13 +200,13 @@ authorization for that release build. The pipeline has four jobs:
    the signer fingerprint against `vars.DAYROWS_UPLOAD_CERT_SHA256` when that
    variable is configured. Final staged bytes are
    `DayRows-<version>-android-universal-{release.apk,play.aab}`,
-   `dist/DayRows-<version>-android-universal-symbols.zip` (the native debug
-   symbols package: every `.so` shipped in the bundle, with `<ABI>/<library>.so`
-   at the zip **root** and **nothing else** — Play's validator accepts only
-   Android ABI directories; stray files like `MANIFEST.txt` or a `lib/` wrapper
-   are rejected), `dist/DayRows-<version>-android-universal-mapping.txt`
-   (the R8/Proguard mapping, uploaded to Play's separate deobfuscation-file
-   slot; never embedded in the symbols zip), and
+   `dist/DayRows-<version>-android-universal-symbols.zip` (provenance copy of every
+   `.so` shipped in the bundle, `<ABI>/<library>.so` at the zip **root** and
+   **nothing else**; the layout is frozen by published releases so assets stay
+   byte-comparable, and it is **not** uploaded to Play),
+   `dist/DayRows-<version>-android-universal-mapping.txt`
+   (the R8/Proguard mapping; AGP embeds the same bytes inside the AAB, which is
+   where Play reads them, and delivery verifies that equality), and
    `dist/SHA256SUMS.txt` (generated and transport-verified). Verified staging
    uploads as a 14-day workflow artifact named
    `<tag>-release`; failed runs upload `<tag>-incomplete`.
@@ -226,21 +226,21 @@ authorization for that release build. The pipeline has four jobs:
    replacing them). The workflow leaves the release in draft; publication keeps
    the tag, draft and staging evidence intact either way.
 
-The AAB asset can be uploaded through the manually dispatched
-[Upload to Google Play workflow](GOOGLE_PLAY_UPLOAD.md), or downloaded for manual
-Play Console upload. The workflow consumes verified release assets and stages a
-Play draft with AAB, native symbols and R8 mapping; review/rollout and acceptance
-remain separate manual destination states. Two more assets
-feed Play's deobfuscation pipeline: the `symbols.zip` (native `.so` set with
-`<ABI>/` directories at the zip root — no `lib/` wrapper, no manifest) goes to
-the release's "Debug symbols" step, and the `mapping.txt` file goes to the
-**deobfuscation file** slot — Play rejects symbols archives containing any
-extra file ("unexpected file: MANIFEST.txt") or any non-ABI directory
-("invalid directory lib"/"invalid directory symbols": only Android ABIs are
-supported). With them uploaded, Android Vitals shows
-retraced Java/Kotlin stack traces and attributed native crash/ANR frames. If a
-future build disables minification, the mapping asset simply vanishes and only
-native frames are attributed. The workflow does not
+The AAB asset is delivered by the manually dispatched
+[Upload to Google Play workflow](GOOGLE_PLAY_UPLOAD.md); it can also be downloaded
+for a manual Play Console upload. The workflow consumes verified release assets and
+creates a Play draft from the AAB alone; review/rollout and acceptance remain
+separate manual destination states. No symbol or mapping upload accompanies it:
+Google Play deobfuscates a **bundle** from data inside the bundle — AGP writes the
+R8 mapping to `BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map`
+and packs native debug symbols into the AAB when
+`android.buildTypes.release.ndk.debugSymbolLevel` is set. `play_upload.py prepare`
+checks both facts against the bundle bytes and refuses delivery when they stop
+holding. DayRows has no NDK build and its eight shipped `.so` files are stripped
+prebuilt libraries, so no native debug symbols exist to deliver; Android Vitals
+still reports retraced Java/Kotlin stack traces from the embedded mapping. The
+`symbols.zip` and `mapping.txt` assets remain published as provenance for offline
+analysis of released bytes. The workflow does not
 implement beta allocation (`-dev.N`), durable release/ledger records, or the
 automatic Play rollout; those remain explicit gaps, and the tag workflow's
 `notes-baseline` resolver covers the notes-side requirements only.
@@ -257,7 +257,7 @@ No official update edges (including cross-GitHub/Play) are promised yet.
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Beta | Release APK, manifest, SHA-256 checksums | Disabled pending implementation |
 | GitHub Releases, `sg0zzy/dayrows` | Android/universal | Stable | Release APK + AAB, SHA-256 checksums, verified notes | Draft staged `automatic`ally after an authorized annotated `vX.Y.Z` tag push; visibility flip is `manual` ([Stable Release](../.github/workflows/release.yml)) |
 | Google Play, `it.stefanogozzi.dayrows` | Android/universal | Beta | None enabled | Disabled |
-| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB + native symbols ZIP + R8 mapping from an existing successful GitHub release build | `manual`: explicitly dispatch `play-upload.yml` on `main` to create a draft on the selected track (default internal); requires `google-play` environment/service-account secret. Review, acceptance and rollout remain manual; see [setup and recovery](GOOGLE_PLAY_UPLOAD.md) |
+| Google Play, `it.stefanogozzi.dayrows` | Android/universal | Stable | Verified upload-signed AAB (self-contained R8 mapping and any native symbols) from an existing successful GitHub release build | `manual`: explicitly dispatch `play-upload.yml` on `main` to create a draft on internal/alpha/beta (never production); requires `google-play` environment/service-account secret. Review, acceptance and rollout remain manual; see [setup and recovery](GOOGLE_PLAY_UPLOAD.md) |
 
 All other destinations default to disabled. Credentials/environment references and
 automated retry identities are intentionally unconfigured while disabled; no tool

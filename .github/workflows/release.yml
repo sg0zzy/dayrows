@@ -139,9 +139,9 @@ jobs:
             "dist/DayRows-$VERSION-android-universal-release.apk"
           cp app/build/outputs/bundle/release/app-release.aab \
             "dist/DayRows-$VERSION-android-universal-play.aab"
-          # Play debug-symbols package: native .so set, lib/<abi>/ at the zip root
-          # (Play rejects any other top-level directory). The R8 mapping is NOT part
-          # of this zip: Play takes it in the deobfuscation-file slot as plain .txt.
+          # Provenance copy of the shipped native .so set (<abi>/<lib>.so at the zip
+          # root). Google Play takes no separate symbol/mapping upload for a bundle:
+          # AGP embeds the R8 mapping inside the .aab. See docs/GOOGLE_PLAY_UPLOAD.md.
           python3 scripts/release_symbols.py build \
             --aab "app/build/outputs/bundle/release/app-release.aab" \
             --output "dist/DayRows-$VERSION-android-universal-symbols.zip" \
