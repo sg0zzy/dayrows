@@ -809,6 +809,48 @@ insert request and the device's calendar app handler disabled, the marker emitte
 `vnd.android.cursor.dir/event`, extras exactly `beginTime=1792825200000` and
 `endTime=1792828800000` (2026-10-24 09:00–10:00 Europe/Rome) and no calendar
 identifier. The device component was re-enabled afterwards. README and PRIVACY.md
-were corrected in the same change; TERMS.md needed no change. Nothing was committed
-or published by this entry; earlier MUST gaps remain open.
+were corrected in the same change; TERMS.md needed no change. This work was
+committed as ef86e37 and tagged v0.1.5; see the release record below.
+
+### Authorized patch bump, source push and stable tag v0.1.5 (2026-10-25)
+
+The publisher requested the commit, the push and the release tag for the
+day-header work. Advance the authoritative VERSION from 0.1.4 to 0.1.5
+(existing Android core mapping: versionCode 6), without changing package IDs,
+signing identities or permissions. The source push is commit ef86e37, the
+remote main tip; the annotated stable tag v0.1.5 (tag object 79db1d8, subject
+`DayRows 0.1.5`) peels to that same commit. The tag push is the publisher
+authorization declared by the stable release workflow. No store is contacted:
+Google Play delivery stays a separate manual dispatch.
+
+The local tag gate passed before pushing (`scripts/release_verify.py tag`):
+canonical `vX.Y.Z` form, VERSION agreement, annotated type and exact
+`DayRows 0.1.5` subject, tagged commit equal to the remote main tip, and the
+remote high-water check over the four existing official records. The stable
+release workflow (run 40145925681) then succeeded in all four jobs: tag and
+reservation validation, signed package build, notes generation over
+v0.1.4..v0.1.5, and staging verification with draft release preparation. The
+restored upload keystore was shredded on the runner.
+
+The staged release is a draft (`isDraft: true`, not prerelease) and is not
+published. Its four assets were downloaded and each verifies against the
+published SHA256SUMS.txt. The release APK reports `it.stefanogozzi.dayrows`
+0.1.5 versionCode 6 and is signed by the production upload certificate
+(SHA-256 d99a0ab39b48c56f430e03881b748802385c0a3c3f363351d692abfe1889486a), the
+identity already recorded for v0.1.4; the debug `.debug` package is not treated
+as a release. The AAB remains the input for the manual Play Console step.
+
+Before tagging, the same source passed 76 debug unit tests, debug lint, managed
+debug packaging (`it.stefanogozzi.dayrows.debug` 0.1.5-debug versionCode 6), the
+83 infrastructure tests and the pinned standards checkout.
+
+Recorded defect, not introduced and not changed by this release: the generated
+notes print the comparison range without the `v` prefix
+(`compare/0.1.4...0.1.5`), which does not resolve; v0.1.4 carries the identical
+defect. Repairing it is a separate change to `scripts/release_verify.py` and
+does not move or reuse the reserved tag.
+
+Publishing the GitHub release and any Play upload remain the publisher's
+decisions and are not claimed here. Previously recorded MUST gaps — settings
+export/restore and the official signing/update-history inventory — remain open.
 
