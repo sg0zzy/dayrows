@@ -1049,3 +1049,18 @@ promoted, production untouched — but review submission is now visible in the r
 instead of being misreported. Re-dispatching delivery remains the publisher's
 decision. Remaining MUST gaps are unchanged: settings export/restore, the official
 signing/update-history inventory, and the recorded release-notes compare-link defect.
+
+Delivered after this correction: the publisher dispatched `play-upload.yml` from
+main `3e7a628` (run 40286357877) with `release_tag=v0.1.6`, `track=internal`,
+`dry_run=false` and the default `review_submission=auto`. Every step succeeded and
+the retained receipt `google-play-v0.1.6-internal` records `status: uploaded_draft`,
+`phase: draft_confirmed`, edit `01292308388980991973`, `artifact_uploaded: true`,
+`edit_committed: true`, `draft_confirmed: true`, `remote_release_status: draft`,
+`remote_state: draft`, `review_submission: automatic` and no `last_error`. The commit
+carried only `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, Google accepted it, and the
+draft was read back from a second read-only edit — Google’s own committed state, not
+this tool’s bookkeeping — so versionCode 7 of `it.stefanogozzi.dayrows` exists on the
+internal testing track as a draft, with `automatic` recording the review consequence
+above rather than concealing it. Nothing was rolled out or promoted, the GitHub
+release for v0.1.6 remains an unpublished draft, and v0.1.5 stays untouched.
+Acceptance, tester distribution and any promotion remain manual.
