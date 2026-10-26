@@ -932,3 +932,61 @@ Remaining MUST gaps are unchanged: settings export/restore, the official
 signing/update-history inventory, and the recorded release-notes compare-link
 defect. v0.1.5 delivery stays open until a non-dry dispatch reports
 `uploaded_draft`.
+
+### Authorized patch bump, source push and stable tag v0.1.6 (2026-10-26)
+
+The publisher requested the commit, the push and the release tag carrying the
+repaired Google Play delivery path. Advance the authoritative VERSION from 0.1.5
+to 0.1.6 (existing Android core mapping: versionCode 7), without changing package
+IDs, signing identities or permissions. The source push is commit 2083597, the
+remote main tip; the annotated stable tag v0.1.6 (tag object ae36c56, subject
+`DayRows 0.1.6`) peels to that same commit. The tag push is the publisher
+authorization declared by the stable release workflow. No store is contacted:
+Google Play delivery stays a separate manual dispatch.
+
+The release delta is delivery tooling and documentation only; no application code
+changed after v0.1.5. That is measured, not assumed: the R8 mapping embedded at
+`BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map` inside the new
+bundle is byte-identical (32,906,508 bytes, SHA-256
+65e6f31f14e5d125261b03aba11af3d39562d0f21f61035307fff1b7075d128a) to the
+published `mapping.txt` and to the mapping already recorded for the v0.1.5
+attempt, so identical compiler output confirms unchanged app sources. The same
+identity is why the patch consumes versionCode 7 for a tooling release rather
+than re-tagging v0.1.5, whose tag is an immutable reservation.
+
+Before tagging, the same source passed 104 infrastructure tests, 76 debug unit
+tests, debug lint (0 errors, 8 pre-existing warnings), managed debug packaging
+(`it.stefanogozzi.dayrows.debug` 0.1.6-debug versionCode 7, read back from the
+built package identity) and the pinned standards checkout. The local tag gate
+passed before pushing (`scripts/release_verify.py tag`): canonical `vX.Y.Z` form,
+VERSION agreement, annotated type and exact `DayRows 0.1.6` subject, tagged
+commit equal to the remote main tip, and the remote high-water check over the
+five existing official records. The stable release workflow (run 40251122531)
+then succeeded in all four jobs: tag and reservation validation, signed package
+build, notes generation over the v0.1.5 baseline, and staging verification with
+draft release preparation. The release keystore was shredded on the runner.
+
+The staged release is a draft (`isDraft: true`, not prerelease, unpublished at
+`releases/tag/untagged-0ff97f8189cc75cfd447`). Its five assets were downloaded
+and each verifies against the published SHA256SUMS.txt. The release APK (SHA-256
+c8bb13409359a23379b8bcb3b6d05717d3336f565b3b8a79b18286ddf095285c) reports
+`it.stefanogozzi.dayrows` 0.1.6 versionCode 7 with min SDK 26 and target SDK 36,
+signed by the production upload certificate (SHA-256
+d99a0ab39b48c56f430e03881b748802385c0a3c3f363351d692abfe1889486a) already
+recorded for v0.1.4 and v0.1.5; the debug `.debug` package is not treated as a
+release. The AAB (SHA-256 10df675495b7f8e839fb63f1400d412f50391548d75726cecd586
+5c102bf6e03) carries the same package, versionName, versionCode and signer.
+Because the bundle self-carries its mapping, Play-side symbolication needs no
+APK-scoped deobfuscation upload — the endpoint that produced the HTTP 400 in the
+v0.1.5 attempts; the bundle still ships no `native_debug_symbols/` and its native
+libraries remain stripped, matching the recorded audit.
+
+v0.1.5 is untouched: its tag object 79db1d8 still peels to ef86e37 and its staged
+draft release is unchanged. Its delivery attempts committed nothing to Google
+Play (retained receipt `status: failed`, edit discarded, no `commit_acknowledged`),
+so versionCode 6 was never accepted and consuming versionCode 7 leaves no gap and
+no collision. v0.1.6 supersedes v0.1.5 as the delivery candidate, replacing the
+statement above that v0.1.5 delivery stays open until a non-dry dispatch reports
+`uploaded_draft`. Remaining MUST gaps are unchanged: settings export/restore, the
+official signing/update-history inventory, and the recorded release-notes
+compare-link defect.
