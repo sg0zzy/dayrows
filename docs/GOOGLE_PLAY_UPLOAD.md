@@ -7,12 +7,37 @@ authorizes upload of that tag's verified files to the chosen Play track. It neve
 runs on push, tags or release publication, and never starts a rollout.
 
 The workflow uploads the signed AAB and creates a **draft** release on the selected
-track (default `internal`), then commits the Google Play edit with
-`changesNotSentForReview=true`. Committing an edit persists it; it is not
-publication. Review, acceptance and rollout stay manual in Play Console, and
-GitHub release publication stays independent. The track choice is `internal`,
-`alpha` or `beta` only: `production` is deliberately not offered, because a
-production draft sits one console click from rollout.
+track (default `internal`), then commits the Google Play edit. Committing an edit
+persists it; it is not publication and never a rollout, and the release keeps
+`status: draft` with no rollout fields. Whether Google additionally *reviews* the
+committed change is Google's decision for the app, governed by the `review_submission`
+input rather than by this workflow's assumption. GitHub release publication stays
+independent. The track choice is `internal`, `alpha` or `beta` only: `production` is
+deliberately not offered, because a production draft sits one console click from
+rollout.
+
+## How a commit interacts with review
+
+`edits.commit` takes two review-related query parameters and this workflow states both
+explicitly instead of accepting an unsafe default:
+
+- `changesInReviewBehavior=ERROR_IF_IN_REVIEW`. The API default is
+  `CANCEL_IN_REVIEW_AND_SUBMIT`, which would cancel a review the publisher already has
+  in flight for *other* changes and then publish everything. Delivery never does that:
+  a change already in review makes this run fail with Google's own
+  `CHANGES_ALREADY_IN_REVIEW` message, and the delivered edit is discarded.
+- `changesNotSentForReview`. Google answers this parameter in two opposite ways
+  depending on app state. DayRows today gets `HTTP 400 INVALID_ARGUMENT … Changes are
+  sent for review automatically. The query parameter changesNotSentForReview must not
+  be set.` (observed 2026-10-26 on edit `09639857306638281668`, nothing committed), so
+  the flag is omitted. The mirrored rejection `Changes cannot be sent for review
+  automatically. Please set the query parameter changesNotSentForReview to true.`
+  appears in the field when an app cannot auto-submit. `review_submission=auto` (the
+  default) commits without the flag and adopts it only when Google's rejection asks
+  for it — at most two commit requests, never a re-upload, because a rejected commit
+  persists nothing and the edit is still open. `review_submission=suppress` insists on
+  the flag and, when Google refuses it, stops with the instruction to re-dispatch as
+  `auto`. A commit is never retried on any other rejection.
 
 ## Why nothing else is uploaded
 
@@ -122,8 +147,9 @@ gh workflow run play-upload.yml --repo sg0zzy/dayrows --ref main \
    `{"versionCodes": ["<code>"], "status": "draft"}` plus a name. No `userFraction`,
    no rollout fields, existing releases preserved verbatim.
 6. `POST /edits/{id}:validate` — ask Google to check the edit without applying it.
-7. `POST /edits/{id}:commit?changesNotSentForReview=true` — persist. The flag is
-   what guarantees the changes are not submitted for review.
+7. `POST /edits/{id}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW` — persist,
+   adding `&changesNotSentForReview=true` only when Google demands it. Neither flag is
+   a rollout, and the API default that cancels an in-flight review is never used.
 8. Open a second edit, read the track back and require a `draft` release naming
    that versionCode, then delete the read-only edit. Only then does the run claim
    success.
@@ -136,7 +162,7 @@ uploads, so a failed run persists nothing.
 | `prepared` (dry run or upload skipped) | Google Play was not contacted |
 | `failed` / `failed_before_persistence` | edit abandoned; nothing persisted |
 | `pending_confirmation` / `remote_state_uncertain` | commit outcome unknown; reconcile before retrying |
-| `uploaded_draft` / `draft_confirmed` | draft committed and read back; not submitted, not rolled out |
+| `uploaded_draft` / `draft_confirmed` | draft committed and read back; `review_submission` in the receipt says whether Google takes the change to review automatically (`automatic`) or holds it (`suppressed`) |
 | `already_delivered` / `unchanged_existing` | Play already holds this artifact and release; nothing changed |
 
 Wait for `uploaded_draft` (or `already_delivered`), open the track in Play Console,
@@ -198,6 +224,17 @@ echoed, and the access token is redacted from every message.
   stale `prepared` receipt, which is why the failure looked like a success line.
   Fixed by dropping both uploads (the bundle carries the mapping), reporting the
   real state, and adding the bundle audit.
+- **2026-10-26 — HTTP 400 at `:commit` for v0.1.6.** The bundle and the internal
+  draft attached cleanly, `:validate` passed, and then
+  `POST …/edits/09639857306638281668:commit?changesNotSentForReview=true` returned
+  `INVALID_ARGUMENT` — “Changes are sent for review automatically. The query parameter
+  changesNotSentForReview must not be set.” The edit was discarded, so versionCode 7
+  stayed undelivered and nothing was submitted. The uploader had hardcoded that flag on
+  the false premise that a commit can always opt out of review; for this app Google
+  decides. `review_submission=auto` now omits the flag and adopts it only if told to,
+  and the commit pins `changesInReviewBehavior=ERROR_IF_IN_REVIEW` so the API default
+  (`CANCEL_IN_REVIEW_AND_SUBMIT`) can never cancel a review the publisher already has
+  in flight.
 - **2026-10-25 — empty credential.** Two earlier runs failed in
   `Authenticate to Google Play` because `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` resolved
   to nothing for the `google-play` environment; the auth action failed closed, as
@@ -209,11 +246,12 @@ Unit tests use a stateful fake of the androidpublisher Edits contract and cover:
 successful AAB delivery, embedded-mapping and native-symbol audits, missing symbol
 material, HTTP 400/403 diagnostics, failures before commit, successful draft
 commit, duplicate versionCode, safe retries, unexpected track states, validation
-failure, production refusal and the guarantee that no rollout or review submission
-can be expressed. Local `prepare` validation can use the real GitHub release
-without Play credentials. Actual Google authentication, permission scope, API
-acceptance, review and rollout require the configured service account and a
-deliberate manual dispatch; they are not claimed by local tests.
+failure, production refusal, the commit review parameters in both accepted forms, and
+the guarantee that no rollout or track promotion can be expressed. Local `prepare`
+validation can use the real GitHub release without Play credentials. Actual Google
+authentication, permission scope, API acceptance, review and rollout require the
+configured service account and a deliberate manual dispatch; they are not claimed by
+local tests.
 
 Useful API references: [bundle upload](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.bundles/upload),
 [draft track releases](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks),

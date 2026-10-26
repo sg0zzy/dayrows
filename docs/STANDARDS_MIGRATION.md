@@ -888,8 +888,9 @@ bundle format carries `BUNDLE-METADATA/…/proguard.map`
 ([app-bundle-format](https://developer.android.com/guide/app-bundle/app-bundle-format));
 for app bundles with AGP ≥ 4.1 native symbols ride inside the bundle
 ([include-native-symbols](https://developer.android.com/build/include-native-symbols));
-an edit persists only on commit and `changesNotSentForReview=true` leaves changes
-unsubmitted ([edits](https://developers.google.com/android-publisher/edits),
+an edit persists only on commit; `changesNotSentForReview=true` was assumed to keep
+any commit unsubmitted, an assumption Google falsified on 2026-10-26 (recorded below)
+([edits](https://developers.google.com/android-publisher/edits),
 [commit](https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit));
 a `draft` release without `userFraction` is the documented persisted-but-not
 rolled-out shape ([edits.tracks](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks)).
@@ -908,7 +909,8 @@ stripped libraries.
 
 Delivered: the uploader uploads the AAB only, verifies the bundle is
 self-describing before contacting Play, validates then commits with
-`changesNotSentForReview=true`, confirms the draft by reading committed state in a
+`changesNotSentForReview=true` (an assumption corrected on 2026-10-26 below),
+confirms the draft by reading committed state in a
 separate read-only edit, distinguishes artifact-uploaded / edit-committed /
 draft-confirmed / failed-before-persistence / remote-state-uncertain, absorbs a
 concurrently published versionCode by re-reading committed state instead of
@@ -917,8 +919,9 @@ with operation, artifact, versionCode, track and edit context while redacting th
 token, and the job summary reports the actual state and the upload step outcome.
 `production` is no longer an offered destination track: a production draft is one
 console click from rollout, so dispatch stays limited to `internal`, `alpha` and
-`beta`. Completion means “draft committed and read back”, never submitted for
-review and never rolled out, satisfying pinned DISTRIBUTION’s declaration rule.
+`beta`. Completion means “draft committed and read back” and never rolled out; the
+review-submission claim in that sentence was corrected on 2026-10-26 below, while the
+declaration rule in pinned DISTRIBUTION stays satisfied.
 
 Verification: `python3 -m unittest discover -s scripts/tests` → 104 tests pass (47
 Play tests, now driving a stateful Edits fake that fails the suite if any APK-only
@@ -990,3 +993,59 @@ statement above that v0.1.5 delivery stays open until a non-dry dispatch reports
 `uploaded_draft`. Remaining MUST gaps are unchanged: settings export/restore, the
 official signing/update-history inventory, and the recorded release-notes
 compare-link defect.
+
+### Google Play commit contract correction (2026-10-26)
+
+The first v0.1.6 delivery dispatch (run 40283914038, job 121443051963, source
+079972b) proved the 2026-10-25 repair correct and exposed the next defect. Artifact
+verification and authentication succeeded, the AAB uploaded, the internal draft
+attached and `:validate` passed; then
+`POST …/edits/09639857306638281668:commit?changesNotSentForReview=true` returned
+`HTTP 400 INVALID_ARGUMENT` with Google's own reason: “Changes are sent for review
+automatically. The query parameter changesNotSentForReview must not be set.” The
+retained receipt `google-play-v0.1.6-internal` records `status: failed`,
+`phase: failed_before_persistence`, `artifact_uploaded: true`,
+`edit_committed: false` and `remote_state: none`: the `finally` handler discarded the
+edit, so versionCode 7 stayed undelivered, nothing was submitted and nothing can be
+served. One log line named the failing operation, Google's status and the exact edit,
+which is the diagnostics the 2026-10-25 change added.
+
+Cause: the uploader hardcoded `changesNotSentForReview=true` on the premise that a
+commit can always opt out of review. Google decides that per app state and rejects
+the flag when an app's changes go to review automatically; the mirrored rejection
+(“Changes cannot be sent for review automatically. Please set the query parameter
+changesNotSentForReview to true.”) is what publishers report in the opposite state.
+`edits.commit` additionally defaults `changesInReviewBehavior` to
+`CANCEL_IN_REVIEW_AND_SUBMIT`, which cancels a review already in flight for other
+changes and then publishes everything — an unsafe default for a draft-only tool.
+
+Delivered: the commit pins `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, so a
+concurrent review fails the run with `CHANGES_ALREADY_IN_REVIEW` instead of being
+cancelled; a `review_submission` dispatch input (`auto` default, or `suppress`)
+decides the flag, where `auto` commits without it and adopts it only when Google's
+rejection explicitly asks for it — at most two commit requests, never a re-upload,
+because a rejected commit persists nothing while the edit stays open; `suppress`
+stops with an instruction to re-dispatch as `auto` instead of looping; no other
+rejection is ever retried. The receipt and job summary gained `review_submission`
+(`automatic`, `suppressed` or `not sent (no commit)`), so the summary states whether
+Google takes the committed change to review rather than claiming review was
+withheld. `docs/GOOGLE_PLAY_UPLOAD.md` documents both parameters, the two mirrored
+rejections and this failure, and no longer promises review is never submitted.
+
+Verification: `python3 -m unittest discover -s scripts/tests` → 108 tests pass,
+including four new commit-contract tests over the stateful Edits fake (flag omitted
+by default with `ERROR_IF_IN_REVIEW` pinned; flag adopted only on Google's demand,
+with exactly one committed edit; suppression refusal reported once with its recovery
+instruction and the edit discarded; unrelated `CHANGES_ALREADY_IN_REVIEW` never
+retried); `python3 scripts/check_standards.py /tmp/dayrows-standards` verified 20
+files at the adopted commit `e3111c4e9dc652f833a5f2ba5232c292646e7969`. No Kotlin or
+Gradle source changed, so the debug suite recorded for v0.1.6 still applies. No Play
+request was made for this change.
+
+Consequence for the publisher, not assumed away: for this app Google sends a
+committed change to review automatically, so the next dispatch submits the internal
+draft to review as it persists it. The release stays `draft` — not rolled out, not
+promoted, production untouched — but review submission is now visible in the receipt
+instead of being misreported. Re-dispatching delivery remains the publisher's
+decision. Remaining MUST gaps are unchanged: settings export/restore, the official
+signing/update-history inventory, and the recorded release-notes compare-link defect.

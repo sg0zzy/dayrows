@@ -225,11 +225,18 @@ class PlayUploadTest(unittest.TestCase):
         self.assertFalse([call for call in api.calls if any(f in call.path for f in APK_ONLY)])
         self.assertEqual(1, len(api.media()))
 
-    def test_commit_never_rolls_out_or_submits_for_review(self):
+    def test_commit_never_rolls_out_and_pins_the_in_review_behaviour(self):
         api = FakePlay(self.record)
-        play.upload(self.directory, api)
+        result = play.upload(self.directory, api)
         commit = api.body(':commit')[0]
-        self.assertIn('changesNotSentForReview=true', commit.path)
+        # The API default CANCEL_IN_REVIEW_AND_SUBMIT would cancel a review the
+        # publisher already has in flight for other changes.
+        self.assertIn('changesInReviewBehavior=ERROR_IF_IN_REVIEW', commit.path)
+        # This app sends changes for review automatically, and Google rejects the
+        # suppression flag in that state (live HTTP 400 INVALID_ARGUMENT, 2026-10-26).
+        self.assertNotIn('changesNotSentForReview', commit.path)
+        self.assertEqual('automatic', result['review_submission'])
+        self.assertEqual('automatic', self.state()['review_submission'])
         positions = [index for index, call in enumerate(api.calls)
                      if ':validate' in call.path or ':commit' in call.path]
         self.assertEqual(2, len(positions))
@@ -240,6 +247,49 @@ class PlayUploadTest(unittest.TestCase):
             self.assertNotIn(forbidden, payload)
         self.assertEqual('draft', api.committed['tracks']['internal']['releases'][0]['status'])
         self.assertEqual('draft', self.state()['remote_release_status'])
+
+    def test_commit_adopts_the_suppression_flag_only_when_google_asks(self):
+        api = FakePlay(self.record)
+        api.fail_commit = play.PlayApiError(
+            'Google Play commit edit: HTTP 400 FAILED_PRECONDITION; Google said: Changes cannot be sent '
+            'for review automatically. Please set the query parameter changesNotSentForReview to true.',
+            method='POST', path='/edits/1:commit', status=400)
+        result = play.upload(self.directory, api)
+        commits = api.body(':commit')
+        self.assertEqual(2, len(commits))
+        self.assertNotIn('changesNotSentForReview', commits[0].path)
+        self.assertIn('changesNotSentForReview=true', commits[1].path)
+        self.assertIn('changesInReviewBehavior=ERROR_IF_IN_REVIEW', commits[1].path)
+        self.assertEqual('suppressed', result['review_submission'])
+        self.assertEqual('uploaded_draft', result['status'])
+        self.assertEqual(1, api.commits)             # the rejected attempt persisted nothing
+        self.assertFalse(api.open_edit_ids())
+
+    def test_suppression_refusal_names_the_recovery_instead_of_looping(self):
+        api = FakePlay(self.record)
+        api.fail_commit = play.PlayApiError(
+            'Google Play commit edit: HTTP 400 INVALID_ARGUMENT; Google said: Changes are sent for review '
+            'automatically. The query parameter changesNotSentForReview must not be set.',
+            method='POST', path='/edits/1:commit', status=400)
+        with self.assertRaises(play.UploadError) as caught:
+            play.upload(self.directory, api, 'suppress')
+        self.assertIn('review_submission=auto', str(caught.exception))
+        self.assertEqual(1, len(api.body(':commit')))   # never retried with a flipped flag
+        self.assertEqual(0, api.commits)
+        self.assertEqual('failed', self.state()['status'])
+        self.assertFalse(api.open_edit_ids())           # the rejected edit was discarded
+
+    def test_unrelated_commit_rejection_never_becomes_a_retry(self):
+        api = FakePlay(self.record)
+        api.fail_commit = play.PlayApiError(
+            'Google Play commit edit: HTTP 400 FAILED_PRECONDITION; Google said: You already have changes '
+            'in review. Cancel this review or wait for it to complete before you try again.',
+            method='POST', path='/edits/1:commit', status=400, reason='CHANGES_ALREADY_IN_REVIEW')
+        with self.assertRaises(play.UploadError):
+            play.upload(self.directory, api)
+        self.assertEqual(1, len(api.body(':commit')))
+        self.assertEqual(0, api.commits)
+        self.assertEqual('failed', self.state()['status'])
 
     def test_committed_draft_is_verified_in_a_separate_read_only_edit(self):
         api = FakePlay(self.record)
@@ -598,15 +648,29 @@ class PlayUploadTest(unittest.TestCase):
     def test_summary_reports_confirmed_draft_with_artifact_identity(self):
         record = {**self.record, 'status': 'uploaded_draft', 'phase': 'draft_confirmed', 'edit_id': '9',
                   'artifact_uploaded': True, 'edit_committed': True, 'draft_confirmed': True,
-                  'remote_release_status': 'draft', 'artifact_source': 'github-release-assets',
-                  'release_run_id': 456, 'signer_sha256': 'd' * 64}
+                  'review_submission': 'automatic', 'remote_release_status': 'draft',
+                  'artifact_source': 'github-release-assets', 'release_run_id': 456,
+                  'signer_sha256': 'd' * 64}
         text, confirmed = play.summary_text(record, 'success')
         self.assertTrue(confirmed)
         self.assertIn('Draft confirmed in Google Play', text)
         self.assertIn('DayRows-0.1.3-android-universal-play.aab', text)
         self.assertIn(self.record['sha256']['aab'], text)
-        self.assertIn('not submitted for review', text)
-        self.assertIn('changesNotSentForReview=true', text)
+        self.assertIn('Google Play sends changes for review automatically', text)
+        self.assertIn('nothing is rolled out', text)
+        self.assertIn('ERROR_IF_IN_REVIEW', text)
+        self.assertNotIn('changesNotSentForReview=true', text)
+
+    def test_summary_distinguishes_a_held_from_an_automatically_reviewed_commit(self):
+        base = {**self.record, 'status': 'uploaded_draft', 'phase': 'draft_confirmed',
+                'artifact_uploaded': True, 'edit_committed': True, 'draft_confirmed': True,
+                'remote_release_status': 'draft'}
+        held, _ = play.summary_text({**base, 'review_submission': 'suppressed'}, 'success')
+        self.assertIn('changesNotSentForReview=true', held)
+        self.assertIn('manual review submission', held)
+        unstated, _ = play.summary_text(base, 'success')
+        self.assertIn('unknown', unstated)
+        self.assertIn('committed', unstated)
 
     def test_summary_shows_the_failure_reason_for_a_failed_delivery(self):
         record = {**self.record, 'status': 'failed', 'phase': 'failed_before_persistence',

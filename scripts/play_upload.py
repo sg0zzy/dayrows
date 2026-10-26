@@ -7,6 +7,13 @@ ndk.debugSymbolLevel is set, the native debug symbols) inside it, so the bundle
 upload is the only artifact Play accepts for a bundle release. prepare() verifies
 that fact from the bytes instead of attaching files to an APK-only endpoint.
 
+Delivery commits a draft with changesInReviewBehavior=ERROR_IF_IN_REVIEW, because the
+API default would cancel a review already in flight for the publisher's other changes.
+Whether that commit also sends the change to Google for review is Google's decision for
+the app: changesNotSentForReview is rejected when changes go to review automatically and
+demanded when they cannot, so auto mode follows Google's own rejection text instead of
+assuming either state.
+
 Authentication is supplied as a short-lived environment token by the official
 Google auth action. No account keys/tokens enter plans, receipts or error logs.
 """
@@ -52,6 +59,15 @@ MAX_FIELD = 300
 # bundle versionCode with HTTP 400.
 BUNDLE_MAPPING = 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map'
 BUNDLE_SYMBOLS = 'base/native_debug_symbols/'
+# edits.commit needs both query parameters stated explicitly. changesInReviewBehavior
+# defaults to CANCEL_IN_REVIEW_AND_SUBMIT, which cancels an in-flight review of the
+# publisher's other changes before publishing everything, so delivery pins
+# ERROR_IF_IN_REVIEW and fails instead. changesNotSentForReview is only valid in one of
+# the two app states: Google answers "Changes are sent for review automatically. The
+# query parameter changesNotSentForReview must not be set." when the app's changes do go
+# to review automatically, and demands the flag when they cannot.
+IN_REVIEW_BEHAVIOR = 'ERROR_IF_IN_REVIEW'
+REVIEW_MODES = ('auto', 'suppress')
 HINTS = {400: 'Google rejected the request; correct what the reason names instead of retrying',
          401: 'the access token is missing or expired; rerun after authentication succeeds',
          403: 'the service account lacks Android Publisher access to this app in Play Console',
@@ -413,8 +429,59 @@ def mark_delivered(directory, record, prior, release):
     save(directory, record)
     return record
 
+def commit_query(suppress_review):
+    """Build the edits.commit query with both review parameters stated explicitly."""
+    query = 'changesInReviewBehavior=' + IN_REVIEW_BEHAVIOR
+    return (query + '&changesNotSentForReview=true') if suppress_review else query
 
-def upload(directory, api):
+
+def google_demands_suppression(error):
+    """True only when Google explicitly orders changesNotSentForReview on."""
+    text = str(error).lower()
+    return ('changesnotsentforreview' in text and ('cannot be sent for review automatically' in text
+                                                   or 'set the query parameter' in text))
+
+
+def google_refuses_suppression(error):
+    """True when Google says this app sends changes for review automatically."""
+    text = str(error).lower()
+    return 'changesnotsentforreview' in text and 'must not be set' in text
+
+
+def commit_edit(api, base, record, edit_id, mode):
+    """Commit the edit using the review-submission form Google Play accepts.
+
+    `auto` commits without changesNotSentForReview and adopts the flag only when
+    Google's own rejection asks for it, because the accepted form depends on app state
+    this tool cannot read. `suppress` insists on the flag and explains how to recover
+    when Google refuses it. At most two commit requests are ever sent: a rejected
+    commit persists nothing, so the same still-open edit is retried as-is, never a
+    rebuilt or re-uploaded artifact. Both requests pin changesInReviewBehavior so an
+    unrelated change already in review is never cancelled by this delivery.
+    """
+    suppress = mode == 'suppress'
+    for attempt in (0, 1):
+        try:
+            api.request('POST', base + ':commit?' + commit_query(suppress),
+                        operation='commit edit', context=delivery_context(record, edit_id))
+            return 'suppressed' if suppress else 'automatic'
+        except PlayApiError as error:
+            if attempt == 0 and mode == 'auto' and google_demands_suppression(error):
+                print('Google Play: this app cannot send changes for review automatically; retrying '
+                      'the same open edit with changesNotSentForReview=true.', file=sys.stderr)
+                suppress = True
+                continue
+            if suppress and google_refuses_suppression(error):
+                raise UploadError(clean(f'{error}; the flag was requested explicitly by this dispatch; '
+                                        're-dispatch with review_submission=auto so Google Play can pick '
+                                        'the accepted form', 1200)) from None
+            raise
+
+
+
+def upload(directory, api, review_submission='auto'):
+    if review_submission not in REVIEW_MODES:
+        raise UploadError('review_submission must be one of ' + ', '.join(REVIEW_MODES))
     record = json.loads((directory / 'delivery.json').read_text())
     tag, track = record['tag'], record['track']
     if not STABLE.fullmatch(tag) or track not in TRACKS or record['package'] != PACKAGE:
@@ -474,13 +541,13 @@ def upload(directory, api):
                     context=delivery_context(record, edit_id, committed=False))
         # Persist before sending: a lost commit response must never cause a blind upload retry.
         record.update(status='pending_confirmation', phase='edit_ready', artifact_uploaded=True,
-                      draft_requested=decision == 'attach-draft')
+                      draft_requested=decision == 'attach-draft', review_submission=review_submission)
         save(directory, record)
         commit_sent = True
-        api.request('POST', base + ':commit?changesNotSentForReview=true', operation='commit edit',
-                    context=delivery_context(record, edit_id))
+        review = commit_edit(api, base, record, edit_id, review_submission)
         commit_acknowledged = True
-        record.update(commit_acknowledged=True, edit_committed=True, phase='edit_committed')
+        record.update(commit_acknowledged=True, edit_committed=True, phase='edit_committed',
+                      review_submission=review)
         save(directory, record)
         # Confirm in a fresh edit rather than trusting submission alone.
         check_id = str(api.request('POST', root, {}, operation='open read-only edit')['id'])
@@ -531,9 +598,13 @@ def state_view(record, outcome='', dry_run=False):
                 f'The upload step ended as “{outcome}” before any artifact was uploaded, so the receipt still '
                 'records local preparation only. Nothing persisted and no edit was committed.', False)
     if status == 'uploaded_draft':
+        review = {'automatic': 'committed while Google Play sends this app’s changes for review '
+                               'automatically',
+                  'suppressed': 'committed with `changesNotSentForReview=true`, so the changes wait for '
+                                'manual review submission'}.get(record.get('review_submission'), 'committed')
         return ('Draft confirmed in Google Play',
-                'The edit was committed with `changesNotSentForReview=true` and the draft was read back from '
-                'a second, read-only edit. It is not submitted for review and not rolled out.', True)
+                f'The edit was {review}, and the draft was read back from a second, read-only edit. The '
+                'release stays `draft`: nothing is rolled out and no track is promoted.', True)
     if status == 'already_delivered':
         return ('Already present in Google Play — nothing changed',
                 f'versionCode {record.get("version_code")} is on track {record.get("track")} as '
@@ -549,6 +620,15 @@ def state_view(record, outcome='', dry_run=False):
             'reason and the artifact context are recorded below.', False)
 
 
+def review_submission_view(record):
+    """Say what the committed edit actually did about review submission."""
+    if not record.get('edit_committed'):
+        return 'not sent (no commit)'
+    return {'automatic': 'Google Play sends changes for review automatically',
+            'suppressed': 'held with `changesNotSentForReview=true`'}.get(record.get('review_submission'),
+                                                                          'unknown')
+
+
 def summary_text(record, outcome='', dry_run=False):
     """Job summary: exact state, artifact identity and the non-secret verification trail."""
     headline, detail, confirmed = state_view(record, outcome, dry_run)
@@ -562,7 +642,8 @@ def summary_text(record, outcome='', dry_run=False):
             ('Upload signer', record.get('signer_sha256', 'unknown')),
             ('Google Play edit', record.get('edit_id') or 'not opened'),
             ('Artifact uploaded', 'yes' if record.get('artifact_uploaded') else 'no'),
-            ('Edit committed', 'yes, changesNotSentForReview=true' if record.get('edit_committed') else 'no'),
+            ('Edit committed', 'yes' if record.get('edit_committed') else 'no'),
+            ('Review submission', review_submission_view(record)),
             ('Remote release', record.get('remote_release_status') or record.get('remote_state') or 'none'),
             ('R8 mapping', mapping),
             ('Native debug symbols', embedded.get('native_debug_symbols', 'not verified')),
@@ -574,8 +655,10 @@ def summary_text(record, outcome='', dry_run=False):
     lines += [f'| {key} | {value} |' for key, value in rows]
     if record.get('last_error'):
         lines += ['', '```text', f'Failure: {record["last_error"]}', '```']
-    lines += ['', 'Review, acceptance and rollout stay manual: this workflow never submits for review, '
-              'never rolls out and never promotes a release between tracks.']
+    lines += ['', 'Rollout stays manual: this workflow never rolls out, never promotes a release between '
+              'tracks and never delivers to production. Whether committed changes go to Google for review is '
+              f'decided by Google Play for the app; the commit pins `changesInReviewBehavior=' +
+              IN_REVIEW_BEHAVIOR + '`, so a change already in review is reported, never cancelled.']
     return '\n'.join(lines), confirmed
 
 
@@ -586,6 +669,10 @@ def main():
     for flag in ('repo', 'tag', 'track', 'expected-signer'):
         prepare_parser.add_argument('--' + flag, required=True)
     upload_parser = commands.add_parser('upload', help='deliver the verified bytes and commit a draft')
+    upload_parser.add_argument('--review-submission', choices=REVIEW_MODES, default='auto',
+                               help='auto lets Google Play choose whether committed changes go to review, '
+                                    'following its own rejection text; suppress insists on '
+                                    'changesNotSentForReview=true')
     summary_parser = commands.add_parser('summary', help='render the state Google Play is actually in')
     summary_parser.add_argument('--upload-outcome', default='',
                                 help='GitHub outcome of the upload step, when that step ran')
@@ -598,9 +685,10 @@ def main():
         if arguments.command == 'prepare':
             prepare(arguments.repo, arguments.tag, arguments.track, arguments.directory, arguments.expected_signer)
         elif arguments.command == 'upload':
-            record = upload(arguments.directory, PlayClient(os.environ.get('PLAY_ACCESS_TOKEN')))
-            print(f'Google Play: {record["phase"]} (status {record["status"]}); '
-                  'review, acceptance and rollout remain manual')
+            record = upload(arguments.directory, PlayClient(os.environ.get('PLAY_ACCESS_TOKEN')),
+                            arguments.review_submission)
+            print(f'Google Play: {record["phase"]} (status {record["status"]}, review submission '
+                  f'{record.get("review_submission", "not sent")}); acceptance and rollout remain manual')
         else:
             record = json.loads((arguments.directory / 'delivery.json').read_text())
             text, confirmed = summary_text(record, arguments.upload_outcome, arguments.dry_run)
