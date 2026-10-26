@@ -969,9 +969,10 @@ then succeeded in all four jobs: tag and reservation validation, signed package
 build, notes generation over the v0.1.5 baseline, and staging verification with
 draft release preparation. The release keystore was shredded on the runner.
 
-The staged release is a draft (`isDraft: true`, not prerelease, unpublished at
-`releases/tag/untagged-0ff97f8189cc75cfd447`). Its five assets were downloaded
-and each verifies against the published SHA256SUMS.txt. The release APK (SHA-256
+The staged release was a draft when cut (`isDraft: true`, not prerelease, at the
+`releases/tag/untagged-0ff97f8189cc75cfd447` URL; published later, recorded below).
+Its five assets were downloaded and each verifies against the published
+SHA256SUMS.txt. The release APK (SHA-256
 c8bb13409359a23379b8bcb3b6d05717d3336f565b3b8a79b18286ddf095285c) reports
 `it.stefanogozzi.dayrows` 0.1.6 versionCode 7 with min SDK 26 and target SDK 36,
 signed by the production upload certificate (SHA-256
@@ -984,10 +985,13 @@ APK-scoped deobfuscation upload — the endpoint that produced the HTTP 400 in t
 v0.1.5 attempts; the bundle still ships no `native_debug_symbols/` and its native
 libraries remain stripped, matching the recorded audit.
 
-v0.1.5 is untouched: its tag object 79db1d8 still peels to ef86e37 and its staged
-draft release is unchanged. Its delivery attempts committed nothing to Google
-Play (retained receipt `status: failed`, edit discarded, no `commit_acknowledged`),
-so versionCode 6 was never accepted and consuming versionCode 7 leaves no gap and
+v0.1.5’s tag is untouched: tag object 79db1d8 still peels to ef86e37. Its GitHub
+release is not a draft — the repository event list shows it published at
+2026-10-25T11:32:54Z, the day it was cut, so the draft state recorded in the v0.1.5
+section describes the release as staged, not as it stands now. Its delivery attempts
+committed nothing to Google Play (retained receipt `status: failed`, edit discarded,
+no `commit_acknowledged`), so versionCode 6 was never accepted and consuming
+versionCode 7 leaves no gap and
 no collision. v0.1.6 supersedes v0.1.5 as the delivery candidate, replacing the
 statement above that v0.1.5 delivery stays open until a non-dry dispatch reports
 `uploaded_draft`. Remaining MUST gaps are unchanged: settings export/restore, the
@@ -1061,6 +1065,13 @@ carried only `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, Google accepted it, a
 draft was read back from a second read-only edit — Google’s own committed state, not
 this tool’s bookkeeping — so versionCode 7 of `it.stefanogozzi.dayrows` exists on the
 internal testing track as a draft, with `automatic` recording the review consequence
-above rather than concealing it. Nothing was rolled out or promoted, the GitHub
-release for v0.1.6 remains an unpublished draft, and v0.1.5 stays untouched.
-Acceptance, tester distribution and any promotion remain manual.
+above rather than concealing it. Nothing was rolled out or promoted and v0.1.5 stays
+untouched. The GitHub release itself is no longer a draft: release 423761030 shows
+`published_at: 2026-10-26T07:07:42Z`, 20 seconds before the failed dispatch
+`40283914038`, and the repository event list attributes the publication to
+`github-actions[bot]` with no workflow run in this repo at that timestamp — an
+Actions-issued token used outside a run here, superseding the draft state recorded
+when the tag was cut. That publication is also why the delivery receipt reports
+`artifact_source: github-release-assets`: the published assets are readable by the
+read-only workflow token, so the documented fallback to the release workflow artifact
+was not needed. Acceptance, tester distribution and any promotion remain manual.
