@@ -51,9 +51,15 @@ workflow uploads:
   (SHA-256 `65e6f31f…128a`).
 - **Native debug symbols** exist only if
   `android.buildTypes.release.ndk.debugSymbolLevel` is set; AGP then packs them
-  into the bundle and Play reads them from there. DayRows has no NDK build: all
-  eight shipped `.so` files are stripped prebuilt libraries, so there is nothing
-  to symbolicate. `release_symbols.py` packages those bytes purely as provenance.
+  into the bundle under `base/native_debug_symbols/` and Play reads them from
+  there. Whether they are *needed* depends on the packaged libraries, not on the
+  app's identity: the audit classifies each `.so` from its ELF section headers.
+  When every packaged library is already stripped, an absent symbol entry is
+  expected — there is nothing to symbolicate. When any library keeps a symbol
+  table and no symbols are embedded, delivery stops and asks for
+  `debugSymbolLevel`, so a future native dependency cannot silently ship
+  unsymbolicated. `release_symbols.py` packages the shipped `.so` bytes as
+  `native-libs.zip`, purely as provenance.
 
 `scripts/play_upload.py prepare` proves both statements from the bundle bytes and
 stops before uploading if either stops being true: the embedded mapping must match
@@ -216,7 +222,8 @@ echoed, and the access token is redacted from every message.
 ## Failure history
 
 - **2026-10-25 — HTTP 400 on `deobfuscationFiles/nativeCode`.** The uploader
-  uploaded the bundle correctly, then posted `symbols.zip` as `nativeCode` and
+  uploaded the bundle correctly, then posted `symbols.zip` (today's
+  `native-libs.zip`) as `nativeCode` and
   `mapping.txt` as `proguard` to `apks/6/deobfuscationFiles/…`, an endpoint that
   attaches files to an APK artifact. No APK with versionCode 6 exists, so Google
   rejected the first post; the edit was abandoned, so nothing persisted and the

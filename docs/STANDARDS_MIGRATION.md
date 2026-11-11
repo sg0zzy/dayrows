@@ -904,8 +904,8 @@ Local evidence from the exact staged v0.1.5 bytes: the bundle’s embedded
 the published `mapping.txt` digest, so Play can retrace Java/Kotlin traces with no
 attachment; the bundle contains no `native_debug_symbols/` entry and
 `readelf --sections` confirms all eight shipped `.so` files are stripped, so no
-symbolication capability was removed — `symbols.zip` was a verbatim copy of those
-stripped libraries.
+symbolication capability was removed — `symbols.zip` (renamed `native-libs.zip` from
+v0.1.7 on; same contents) was a verbatim copy of those stripped libraries.
 
 Delivered: the uploader uploads the AAB only, verifies the bundle is
 self-describing before contacting Play, validates then commits with

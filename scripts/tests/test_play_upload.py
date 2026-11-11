@@ -588,6 +588,94 @@ class PlayUploadTest(unittest.TestCase):
         self.assertIsNone(play.elf_has_symbol_table(b'not an elf file at all'))
         self.assertIsNone(play.elf_has_symbol_table(b'\x7fELF' + b'\x00' * 10))
 
+    # --- symbol classification and deobfuscation reporting -------------------
+    def test_stripped_libraries_are_classified_as_not_required(self):
+        for count in (1, 8):
+            with self.subTest(stripped=count):
+                audit = {'native_debug_symbols': 'absent',
+                         'native_libraries': {'stripped': count}}
+                self.assertEqual('not-required', play.classify_native_symbols(audit))
+
+    def test_bundle_without_native_libraries_needs_no_symbols(self):
+        audit = {'native_debug_symbols': 'absent', 'native_libraries': {}}
+        self.assertEqual('not-required', play.classify_native_symbols(audit))
+
+    def test_unstripped_or_unclassified_libraries_are_unexpected(self):
+        for libraries in ({'stripped': 1, 'unstripped': 1}, {'stripped': 1, 'unknown': 1},
+                          {'unstripped': 2}):
+            with self.subTest(libraries=libraries):
+                audit = {'native_debug_symbols': 'absent', 'native_libraries': libraries}
+                self.assertEqual('unexpected', play.classify_native_symbols(audit))
+
+    def test_embedded_symbols_are_detected_when_present(self):
+        audit = {'native_debug_symbols': 'embedded', 'native_libraries': {'stripped': 2}}
+        self.assertEqual('embedded', play.classify_native_symbols(audit))
+        self.assertEqual('not-verified', play.classify_native_symbols({}))
+
+    def test_audit_records_the_classification_it_enforced(self):
+        stripped = play.audit_bundle(str(self.bundle_bytes()), str(self.mapping_file()))
+        self.assertEqual('not-required', stripped['native_symbols_classification'])
+        embedded = play.audit_bundle(str(self.bundle_bytes(symbols=True)), str(self.mapping_file()))
+        self.assertEqual('embedded', embedded['native_symbols_classification'])
+
+    def test_summary_separates_mapping_from_native_symbols(self):
+        self.record['embedded'] = {'mapping_matches_bundle': True, 'native_debug_symbols': 'absent',
+                                   'native_libraries': {'stripped': 8}}
+        text, _ = play.summary_text(self.record, 'success')
+        self.assertIn('| R8/ProGuard mapping | inside the AAB', text)
+        self.assertIn('| Native debug symbols | absent, expected: all 8 packaged native '
+                      'libraries are already stripped', text)
+
+    def test_summary_reports_single_stripped_library_in_the_singular(self):
+        self.record['embedded'] = {'mapping_matches_bundle': True, 'native_debug_symbols': 'absent',
+                                   'native_libraries': {'stripped': 1}}
+        text, _ = play.summary_text(self.record, 'success')
+        self.assertIn('all 1 packaged native library is already stripped', text)
+
+    def test_summary_never_calls_unstripped_libraries_expected(self):
+        self.record['embedded'] = {'mapping_matches_bundle': True, 'native_debug_symbols': 'absent',
+                                   'native_libraries': {'stripped': 1, 'unstripped': 2}}
+        text, _ = play.summary_text(self.record, 'success')
+        self.assertIn('unexpected, delivery must stop', text)
+        self.assertNotIn('expected: all', text)
+
+    def test_summary_reports_embedded_native_symbols(self):
+        self.record['embedded'] = {'mapping_matches_bundle': True,
+                                   'native_debug_symbols': 'embedded'}
+        text, _ = play.summary_text(self.record, 'success')
+        self.assertIn('base/native_debug_symbols/', text)
+
+    def test_summary_does_not_claim_verification_it_lacks(self):
+        self.record['embedded'] = {}
+        text, _ = play.summary_text(self.record, 'success')
+        self.assertIn('| R8/ProGuard mapping | not verified |', text)
+        self.assertIn('| Native debug symbols | not verified |', text)
+
+    def test_release_assets_are_named_native_libs(self):
+        names = play.filenames('0.1.7')
+        self.assertEqual('DayRows-0.1.7-android-universal-native-libs.zip', names['native-libs'])
+        self.assertEqual({'aab', 'native-libs', 'mapping'}, set(names))
+        self.assertNotIn('symbols', names)
+        for name in names.values():
+            self.assertTrue(name.startswith('DayRows-0.1.7-android-universal-'), name)
+
+    def test_new_releases_use_the_native_libs_name(self):
+        stem = 'DayRows-0.1.8-android-universal-'
+        available = {stem + 'play.aab', stem + 'mapping.txt', stem + 'native-libs.zip'}
+        self.assertEqual(stem + 'native-libs.zip', play.native_libs_name(available, '0.1.8'))
+
+    def test_already_published_releases_keep_their_symbols_name(self):
+        # v0.1.6 and earlier published symbols.zip and their assets are immutable.
+        stem = 'DayRows-0.1.6-android-universal-'
+        available = {stem + 'play.aab', stem + 'mapping.txt', stem + 'symbols.zip'}
+        self.assertEqual(stem + 'symbols.zip', play.native_libs_name(available, '0.1.6'))
+
+    def test_missing_provenance_package_falls_back_to_the_new_name(self):
+        # The caller then reports the missing asset under the current convention.
+        stem = 'DayRows-0.1.8-android-universal-'
+        self.assertEqual(stem + 'native-libs.zip',
+                         play.native_libs_name({stem + 'play.aab'}, '0.1.8'))
+
     def test_prepare_records_the_bundle_audit(self):
         audit = {'proguard_map': 'a' * 64, 'mapping_matches_bundle': True,
                  'native_debug_symbols': 'absent', 'native_libraries': {'stripped': 2},

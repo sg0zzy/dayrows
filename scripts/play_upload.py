@@ -141,9 +141,34 @@ def gh(*arguments, binary=False):
     return result.stdout if binary else json.loads(result.stdout)
 
 
+# Releases v0.1.6 and earlier published the provenance package as
+# `-symbols.zip`. Deliveries of those already-published releases must resolve the
+# name that release actually carries; only new releases use `-native-libs.zip`.
+LEGACY_NATIVE_LIBS = 'symbols.zip'
+NATIVE_LIBS = 'native-libs.zip'
+
+
+def native_libs_name(available, version):
+    """Pick the provenance-package asset name this release actually publishes.
+
+    New releases carry `native-libs.zip`; an already-published release from before
+    the rename carries `symbols.zip`, and its assets are immutable, so delivery
+    follows the release instead of failing on the new name.
+    """
+    stem = f'DayRows-{version}-android-universal-'
+    for candidate in (NATIVE_LIBS, LEGACY_NATIVE_LIBS):
+        if stem + candidate in available:
+            return stem + candidate
+    return stem + NATIVE_LIBS
+
+
 def filenames(version):
     stem = f'DayRows-{version}-android-universal-'
-    return {'aab': stem + 'play.aab', 'symbols': stem + 'symbols.zip', 'mapping': stem + 'mapping.txt'}
+    # `native-libs` (formerly `symbols`) is a provenance copy of the shipped .so
+    # bytes, not native debug symbols: Play takes no separate symbol upload for a
+    # bundle. The old name implied symbolication data that never existed.
+    return {'aab': stem + 'play.aab', 'native-libs': stem + NATIVE_LIBS,
+            'mapping': stem + 'mapping.txt'}
 
 
 def elf_has_symbol_table(data):
@@ -166,6 +191,25 @@ def elf_has_symbol_table(data):
         if struct.unpack_from(endian + 'I', data, offset + index * entry_size + 4)[0] == 2:
             return True
     return False
+
+
+def classify_native_symbols(embedded):
+    """Classify native-symbol state as 'embedded', 'not-required' or 'unexpected'.
+
+    The single source of truth for whether an absent `native_debug_symbols` entry is
+    fine. `audit_bundle` enforces the 'unexpected' case by refusing delivery; the
+    job summary explains the same decision, so both read from here.
+    """
+    embedded = embedded or {}
+    state = embedded.get('native_debug_symbols')
+    if state == 'embedded':
+        return 'embedded'
+    if state != 'absent':
+        return 'not-verified'
+    libraries = embedded.get('native_libraries') or {}
+    if libraries.get('unstripped') or libraries.get('unknown'):
+        return 'unexpected'
+    return 'not-required'
 
 
 def audit_bundle(aab_path, mapping_path):
@@ -193,11 +237,13 @@ def audit_bundle(aab_path, mapping_path):
     if not audit['mapping_matches_bundle']:
         raise UploadError('The AAB does not embed the R8 mapping shipped as the release mapping asset; '
                           'Google Play could not deobfuscate this artifact, so delivery stopped before any upload')
-    if audit['native_debug_symbols'] == 'absent' and audit['native_libraries'].get('unstripped'):
+    classification = classify_native_symbols(audit)
+    audit['native_symbols_classification'] = classification
+    if classification == 'unexpected':
         raise UploadError('Native libraries keep symbol tables but the AAB embeds no native debug symbols; '
                           'set android.buildTypes.release.ndk.debugSymbolLevel (AGP >= 4.1) and rebuild so '
                           'Google Play receives them inside the bundle')
-    if audit['native_debug_symbols'] == 'embedded':
+    if classification == 'embedded':
         audit['native_symbols_action'] = 'delivered-inside-bundle'
     return audit
 
@@ -251,7 +297,6 @@ def prepare(repo, tag, track, directory, expected_signer):
     if not completed:
         raise UploadError('No successful Stable Release workflow exists for this exact tag/commit')
     names = filenames(version)
-    required = {*names.values(), 'SHA256SUMS.txt'}
     directory.mkdir(parents=True, exist_ok=True)
     try:
         release = gh('release', 'view', tag, '--repo', repo, '--json', 'tagName,assets')
@@ -267,8 +312,13 @@ def prepare(repo, tag, track, directory, expected_signer):
                               'publish the GitHub draft or restore the original verified artifacts')
     else:
         artifact_source = 'github-release-assets'
-        if release['tagName'] != tag or not required <= {asset['name'] for asset in release['assets']}:
-            raise UploadError('Release is missing its AAB, symbols, mapping or checksums')
+        available = {asset['name'] for asset in release['assets']}
+        # Follow the published name: pre-rename releases carry symbols.zip and their
+        # assets are immutable, so a delivery for them must not demand the new name.
+        names['native-libs'] = native_libs_name(available, version)
+        required = {*names.values(), 'SHA256SUMS.txt'}
+        if release['tagName'] != tag or not required <= available:
+            raise UploadError('Release is missing its AAB, native libraries, mapping or checksums')
         for name in sorted(required | {f'DayRows-{version}-android-universal-release.apk'}):
             result = subprocess.run(['gh', 'release', 'download', tag, '--repo', repo,
                                      '--pattern', name, '--dir', str(directory)], capture_output=True)
@@ -286,7 +336,7 @@ def prepare(repo, tag, track, directory, expected_signer):
     code = version_code(version)
     require_identity(str(aab), aab_identity(str(aab)), PACKAGE, version, code)
     signer = verify_aab_signature(str(aab), expected_signer)
-    check_symbols(str(directory / names['symbols']), str(aab))
+    check_symbols(str(directory / names['native-libs']), str(aab))
     embedded = audit_bundle(str(aab), str(directory / names['mapping']))
     hashes = {kind: sha256_file(str(directory / name)) for kind, name in names.items()}
     if any(digests.get(name) != hashes[kind] for kind, name in names.items()):
@@ -629,13 +679,48 @@ def review_submission_view(record):
                                                                           'unknown')
 
 
+def deobfuscation_view(embedded):
+    """Describe the two distinct deobfuscation inputs without conflating them.
+
+    R8/ProGuard mapping and native debug symbols are different data with different
+    producers and consumers, so they get separate rows. An absent native-symbol
+    entry is reported as expected when every packaged library is stripped, because
+    then there is nothing to symbolicate; that is a fact about this bundle, not an
+    assumption that native code will never exist, so the wording states what the
+    audit observed rather than predicting the future.
+    """
+    embedded = embedded or {}
+    mapping = ('inside the AAB, byte-identical to mapping.txt'
+               if embedded.get('mapping_matches_bundle')
+               else 'not verified' if embedded.get('proguard_map') is None
+               else 'present but differs from mapping.txt')
+    classification = classify_native_symbols(embedded)
+    libraries = embedded.get('native_libraries') or {}
+    stripped = libraries.get('stripped', 0)
+    if classification == 'embedded':
+        symbols = 'inside the AAB (base/native_debug_symbols/)'
+    elif classification == 'unexpected':
+        # The audit already refuses this combination; never claim it is expected.
+        symbols = (f"absent, but {libraries.get('unstripped', 0)} unstripped and "
+                   f"{libraries.get('unknown', 0)} unclassified native libraries are packaged: "
+                   'unexpected, delivery must stop')
+    elif classification == 'not-required' and stripped:
+        symbols = (f'absent, expected: all {stripped} packaged native librar'
+                   f'{"y is" if stripped == 1 else "ies are"} already stripped, so there '
+                   'is nothing to symbolicate')
+    elif classification == 'not-required':
+        symbols = 'absent, expected: the bundle packages no native libraries'
+    else:
+        symbols = 'not verified'
+    return mapping, symbols
+
+
 def summary_text(record, outcome='', dry_run=False):
     """Job summary: exact state, artifact identity and the non-secret verification trail."""
     headline, detail, confirmed = state_view(record, outcome, dry_run)
     embedded = record.get('embedded') or {}
     files = record.get('files') or {}
-    mapping = 'inside the AAB, verified against mapping.txt' if embedded.get('mapping_matches_bundle') else \
-        'not verified'
+    mapping, symbols = deobfuscation_view(embedded)
     rows = [('State', f'`{record.get("phase", record.get("status"))}` (status `{record.get("status")}`)'),
             ('Artifact', f'`{files.get("aab", "unknown")}`'),
             ('AAB SHA-256', record.get('sha256', {}).get('aab', 'unknown')),
@@ -645,8 +730,8 @@ def summary_text(record, outcome='', dry_run=False):
             ('Edit committed', 'yes' if record.get('edit_committed') else 'no'),
             ('Review submission', review_submission_view(record)),
             ('Remote release', record.get('remote_release_status') or record.get('remote_state') or 'none'),
-            ('R8 mapping', mapping),
-            ('Native debug symbols', embedded.get('native_debug_symbols', 'not verified')),
+            ('R8/ProGuard mapping', mapping),
+            ('Native debug symbols', symbols),
             ('Verified inputs', f'{record.get("artifact_source", "unknown")} · run '
                                f'{record.get("release_run_id", "unknown")}')]
     lines = [f'## Google Play delivery · {record.get("tag")} · versionCode '

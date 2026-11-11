@@ -174,10 +174,10 @@ class SymbolsPackageTest(unittest.TestCase):
                                     f"elf-{abi}-{library}".encode())
             bundle.writestr("base/manifest/AndroidManifest.xml", b"<manifest/>")
 
-    def symbols_path(self, name="symbols.zip"):
+    def symbols_path(self, name="native-libs.zip"):
         return self.root / name
 
-    def build_symbols(self, name="symbols.zip"):
+    def build_symbols(self, name="native-libs.zip"):
         import release_symbols
         output = self.root / name
         release_symbols.package(str(self.aab), str(output), "2026-10-20T00:00:00Z")
@@ -221,6 +221,49 @@ class SymbolsPackageTest(unittest.TestCase):
 
 
 
+class ReleaseAssetNamingTest(unittest.TestCase):
+    """The staged asset names must agree across the workflow, scripts and contract."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_workflow_stages_native_libs_and_no_longer_stages_symbols(self):
+        workflow = (self.ROOT / ".github/workflows/release.yml").read_text()
+        self.assertIn("android-universal-native-libs.zip", workflow)
+        self.assertNotIn("android-universal-symbols.zip", workflow)
+        # Every place the file is produced, checksummed or verified uses one spelling.
+        self.assertEqual(1, len({line.split('native-libs.zip')[0].rsplit('/', 1)[-1]
+                                 for line in workflow.splitlines() if 'native-libs.zip' in line}))
+
+    def test_play_upload_delivers_the_same_native_libs_name(self):
+        import play_upload
+        names = play_upload.filenames('0.1.7')
+        # The workflow interpolates $VERSION, so compare the version-independent part:
+        # a delivery looking for a different suffix would fail at download time.
+        suffix = names['native-libs'].split('android-universal-', 1)[1]
+        self.assertEqual('native-libs.zip', suffix)
+        workflow = (self.ROOT / ".github/workflows/release.yml").read_text()
+        self.assertIn(f"android-universal-{suffix}", workflow)
+        self.assertEqual(f"DayRows-0.1.7-android-universal-{suffix}", names['native-libs'])
+
+    def test_development_contract_names_the_new_asset(self):
+        contract = (self.ROOT / "docs/DEVELOPMENT.md").read_text()
+        self.assertIn("android-universal-native-libs.zip", contract)
+        # The old name may appear only as an explicit historical note.
+        # Markdown wraps prose, so judge whole paragraphs. An old name is acceptable
+        # only in a passing historical reference: the same paragraph must also name
+        # the current asset and say when the change happened. A paragraph that
+        # mentions the old name alone is a stale contract.
+        stale = []
+        for block in contract.split("\n\n"):
+            if "symbols.zip" not in block:
+                continue
+            names_current = "native-libs.zip" in block
+            historical = any(marker in block for marker in ("v0.1.6", "earlier", "rename"))
+            if not (names_current and historical):
+                stale.append(block.strip()[:120])
+        self.assertEqual([], stale, "stale asset name in contract")
+
+
 class SymbolsLayoutTest(unittest.TestCase):
     """Play layout gates: <abi> dirs at root, Android ABIs only, no extra files."""
 
@@ -234,7 +277,7 @@ class SymbolsLayoutTest(unittest.TestCase):
                 bundle.writestr(f"base/lib/{abi}/libone.so", f"elf-{abi}".encode())
             bundle.writestr("base/manifest/AndroidManifest.xml", b"<manifest/>")
 
-    def build_symbols(self, name="symbols.zip") -> Path:
+    def build_symbols(self, name="native-libs.zip") -> Path:
         import release_symbols
         output = self.root / name
         release_symbols.package(str(self.aab), str(output), "")

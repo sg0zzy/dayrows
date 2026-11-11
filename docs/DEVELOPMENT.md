@@ -208,10 +208,15 @@ authorization for that release build. The pipeline has four jobs:
    the signer fingerprint against `vars.DAYROWS_UPLOAD_CERT_SHA256` when that
    variable is configured. Final staged bytes are
    `DayRows-<version>-android-universal-{release.apk,play.aab}`,
-   `dist/DayRows-<version>-android-universal-symbols.zip` (provenance copy of every
-   `.so` shipped in the bundle, `<ABI>/<library>.so` at the zip **root** and
+   `dist/DayRows-<version>-android-universal-native-libs.zip` (provenance copy of
+   every `.so` shipped in the bundle, `<ABI>/<library>.so` at the zip **root** and
    **nothing else**; the layout is frozen by published releases so assets stay
-   byte-comparable, and it is **not** uploaded to Play),
+   byte-comparable, and it is **not** uploaded to Play. The inner layout and the
+   bytes are unchanged from the asset releases v0.1.6 and earlier published as
+   `-symbols.zip`; only the filename differs, from the first release built after
+   this rename onward. Those earlier releases keep their original asset names and
+   are never rewritten, so `play_upload.py prepare` resolves whichever name the
+   release it is delivering actually publishes),
    `dist/DayRows-<version>-android-universal-mapping.txt`
    (the R8/Proguard mapping; AGP embeds the same bytes inside the AAB, which is
    where Play reads them, and delivery verifies that equality), and
@@ -244,11 +249,15 @@ R8 mapping to `BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map`
 and packs native debug symbols into the AAB when
 `android.buildTypes.release.ndk.debugSymbolLevel` is set. `play_upload.py prepare`
 checks both facts against the bundle bytes and refuses delivery when they stop
-holding. DayRows has no NDK build and its eight shipped `.so` files are stripped
-prebuilt libraries, so no native debug symbols exist to deliver; Android Vitals
-still reports retraced Java/Kotlin stack traces from the embedded mapping. The
-`symbols.zip` and `mapping.txt` assets remain published as provenance for offline
-analysis of released bytes. The workflow does not
+holding. As built today every packaged `.so` is an already-stripped prebuilt
+library, so no native debug symbols exist to deliver and Android Vitals retraces
+Java/Kotlin stack traces from the embedded mapping alone; that is an observation
+about the current bundle, not a permanent property — adding native code or an
+unstripped dependency makes `prepare` demand `ndk.debugSymbolLevel` rather than
+ship unsymbolicated. The `native-libs.zip` and `mapping.txt` assets remain
+published as provenance for offline analysis of released bytes. `native-libs.zip`
+is named for what it contains — the shipped `.so` bytes — not for debug symbols;
+it never carried any symbolication data. The workflow does not
 implement beta allocation (`-dev.N`), durable release/ledger records, or the
 automatic Play rollout; those remain explicit gaps, and the tag workflow's
 `notes-baseline` resolver covers the notes-side requirements only.

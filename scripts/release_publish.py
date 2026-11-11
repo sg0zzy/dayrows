@@ -102,7 +102,7 @@ def release_body(repository: str, tag: str, version: str, notes_file: str,
               "selected track (never production, never a rollout). No separate symbol",
               "or mapping upload is sent: an app bundle carries its R8 mapping and any",
               "native debug symbols inside it, which is what Play uses to retrace",
-              "crashes; `symbols.zip` and `mapping.txt` stay published as provenance",
+              "crashes; `native-libs.zip` and `mapping.txt` stay published as provenance",
               "for offline analysis. Play acceptance is a separate destination state",
               "and is not implied by this GitHub release."]
     return "\n".join(lines) + "\n"

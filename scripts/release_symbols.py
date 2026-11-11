@@ -16,9 +16,13 @@ from the bundle, so neither is uploaded separately; see
 docs/GOOGLE_PLAY_UPLOAD.md. scripts/play_upload.py re-verifies that claim from
 the bundle bytes and refuses a delivery where it stops being true.
 
-DayRows ships only stripped prebuilt libraries (there is no NDK build), so no
-debug symbols exist to deliver today; this package records exactly which native
-bytes ship, which is what makes that statement checkable.
+The package is named `native-libs.zip` because that is what it holds: the shipped
+library bytes, not debug symbols. Whether debug symbols are needed depends on the
+packaged libraries, not on the app: when every one is already stripped there is
+nothing to symbolicate, and when one keeps a symbol table without embedded symbols
+`scripts/play_upload.py` refuses the delivery instead of shipping blind. This
+package records exactly which native bytes ship, which is what makes that
+statement checkable.
 
 Usage:
   python3 scripts/release_symbols.py build --aab <app-release.aab> --output <zip>
@@ -45,14 +49,16 @@ ABIS = {
     "arm64-v8a_C", "x86_64_C",  # legacy Google Play variants
 }
 
-MANIFEST_HEADER = """DayRows native debug symbols
+MANIFEST_HEADER = """DayRows native libraries (provenance manifest, not debug symbols)
 Generated: {generated}
 Application archive: {arch}
 Archive SHA-256: {arch_sha256}
 Layout: <abi>/<library>.so at the zip root (frozen release-asset layout)
 Libraries: {count} ({abis})
 The .so bytes are copied verbatim from the app bundle. This package is release
-provenance: Google Play takes no separate symbol upload for an app bundle.
+provenance: Google Play takes no separate symbol upload for an app bundle. These
+bytes are not debug symbols and cannot symbolicate a crash; see
+docs/GOOGLE_PLAY_UPLOAD.md for how symbolication is actually resolved.
 """
 
 
@@ -115,11 +121,11 @@ def package(aab_path: str, output: str, generated: str) -> None:
 
 
 def check(symbols_zip: str, aab_source: str) -> None:
-    """Verify a symbols zip against its manifest and the source bundle."""
+    """Verify a native-libs zip against its manifest and the source bundle."""
     bundle = Path(aab_source)
     symbols = Path(symbols_zip)
     if not symbols.is_file():
-        raise SystemExit(f"symbols zip not found: {symbols}")
+        raise SystemExit(f"native-libs zip not found: {symbols}")
     if not bundle.is_file():
         raise SystemExit(f"app bundle not found: {bundle}")
 
@@ -132,7 +138,7 @@ def check(symbols_zip: str, aab_source: str) -> None:
                        or not name.endswith(".so")}
         if invalid_top:
             raise SystemExit(
-                "invalid symbol layout: unexpected entries " + ", ".join(sorted(invalid_top))
+                "invalid native-libs layout: unexpected entries " + ", ".join(sorted(invalid_top))
                 + "; the release asset allows only <abi>/<library>.so at the zip root "
                   "(Android ABIs only)")
         listed = [name for name in zipped.namelist() if re.fullmatch(r"[^/]+/[^/]+\.so", name)]
@@ -147,10 +153,10 @@ def check(symbols_zip: str, aab_source: str) -> None:
                       if re.fullmatch(r"base/lib/[^/]+/[^/]+\.so", name)}
         for name in listed:
             if name not in origin:
-                raise SystemExit(f"symbol {name} does not exist in the source bundle")
+                raise SystemExit(f"library {name} does not exist in the source bundle")
             if sha256_bytes(zipped.read(name)) != origin[name]:
-                raise SystemExit(f"symbol {name} differs from the source bundle bytes")
-        print(f"symbols verified: {len(listed)} libraries match the source bundle "
+                raise SystemExit(f"library {name} differs from the source bundle bytes")
+        print(f"native libraries verified: {len(listed)} match the source bundle "
               f"(root ABI layout)")
         return
 
@@ -158,12 +164,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="mode", required=True)
 
-    build = sub.add_parser("build", help="generate a native-symbols zip from the release .aab")
+    build = sub.add_parser("build", help="generate a native-libs zip from the release .aab")
     build.add_argument("--aab", required=True)
     build.add_argument("--output", required=True)
     build.add_argument("--generated", default="", help="UTC timestamp recorded in the manifest")
 
-    inspect = sub.add_parser("check", help="verify a symbols zip against the release .aab")
+    inspect = sub.add_parser("check", help="verify a native-libs zip against the release .aab")
     inspect.add_argument("--zip", required=True)
     inspect.add_argument("--aab", required=True)
 
