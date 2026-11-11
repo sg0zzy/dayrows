@@ -90,6 +90,14 @@ using Gradle's shared intermediate output. Do not run unmanaged/IDE builds again
 the same working directory concurrently. Gradle may update ignored intermediate
 outputs/caches; it never rewrites `VERSION` through this helper.
 
+On the artifact host (`AI395`) a successful build additionally publishes the
+verified APK to `/srv/artifacts/dayrows/DayRows-<version>-android-universal-debug.apk`,
+replacing the previous copy atomically after a byte-for-byte hash comparison.
+Other hosts, including CI runners, only archive locally and never touch the share.
+`DAYROWS_ARTIFACT_SHARE` overrides the destination for a single invocation. The
+published file is a debug package, not an official release, and does not replace
+the managed local archive.
+
 The manifest records manager/schema, source SHA/dirty state, SHA-256 source and
 configuration identities, standards pin, core/channel, host/tools/options,
 per-target outcome and verified package metadata, timestamps and locked completion
@@ -103,8 +111,8 @@ Source changes during compilation fail the build before success/retention.
 
 Failure returns nonzero and retains failed/in-progress metadata with target/stage
 information. Interrupted processes can leave `in_progress` state, which is never
-automatically collected. Cleanup failure after successful compilation returns
-nonzero as maintenance failure, leaving the successful manifest intact. Logs stay
+automatically collected. Cleanup or publication failure after successful compilation
+returns nonzero as maintenance failure, leaving the successful manifest intact. Logs stay
 in the terminal/Actions log, not copied from potentially sensitive private paths.
 
 Direct `./gradlew assembleDebug`, `assembleRelease` and `bundleRelease` retain

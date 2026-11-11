@@ -231,6 +231,32 @@ class SourceVersionTest(unittest.TestCase):
         with patch('build_debug.ROOT', Path(tempfile.gettempdir())), self.assertRaises(ValueError):
             build(['-Ppassword=not-a-real-secret'])
 
+    def test_publish_apk_only_on_the_artifact_host(self):
+        from build_debug import ARTIFACT_HOST, publish_apk
+        with tempfile.TemporaryDirectory() as temp:
+            share = Path(temp) / 'share'
+            apk = Path(temp) / 'app-debug.apk'
+            apk.write_bytes(b'apk-bytes')
+            name = 'DayRows-0.1.6-android-universal-debug.apk'
+            with patch.dict(os.environ, {'DAYROWS_ARTIFACT_SHARE': str(share)}):
+                with patch('build_debug.platform.node', return_value='not-the-artifact-host'):
+                    self.assertIsNone(publish_apk(apk, name))
+                    self.assertFalse(share.exists(), 'Other hosts must not touch the share')
+                with patch('build_debug.platform.node', return_value=ARTIFACT_HOST):
+                    published = publish_apk(apk, name)
+                    self.assertEqual(published, share / name)
+                    self.assertEqual(published.read_bytes(), b'apk-bytes')
+                    self.assertEqual(published.stat().st_mode & 0o777, 0o644)
+                    self.assertEqual([p.name for p in share.iterdir()], [name], 'No temporary file remains')
+                    apk.write_bytes(b'rebuilt')
+                    publish_apk(apk, name)
+                    self.assertEqual(published.read_bytes(), b'rebuilt')
+                    with patch('build_debug.sha256', side_effect=['a' * 64, 'b' * 64]), \
+                         self.assertRaises(ValueError):
+                        publish_apk(apk, name)
+                    self.assertFalse(published.exists(), 'Mismatched copy is not left published')
+                    self.assertFalse((share / f'.{name}.unrelated').exists())
+
     def test_build_failure_and_source_change_never_collect(self):
         # Mock only the compiler/SDK boundary; exercise real state transitions,
         # failure propagation and storage. No actual compilation or remote calls.

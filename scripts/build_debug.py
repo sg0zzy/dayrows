@@ -11,10 +11,15 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from artifacts import Storage, limit_value
 
 ROOT = Path(__file__).resolve().parents[1]
+# Shared drop for installable packages. Only the named artifact host writes it;
+# every other machine (CI runners included) builds and archives locally.
+ARTIFACT_HOST = 'AI395'
+ARTIFACT_SHARE = Path('/srv/artifacts/dayrows')
 ALLOWED = {'testDebugUnitTest', 'lintDebug', '--offline', '--no-daemon', '--console=plain',
            '--rerun-tasks', '--no-build-cache', '--refresh-dependencies', '--stacktrace',
            '--warning-mode=all'}
@@ -97,6 +102,34 @@ def verify_apk(apk, sdk, version):
         raise ValueError('Unexpected Android SDK compatibility')
     return dict(application_id=package[1], version_code=int(package[2]), version_name=package[3],
                 signer_sha256=certificate[1].lower(), signing_profile='test-only-debug')
+
+
+def publish_apk(apk, name):
+    """Copy the verified APK to the shared drop, atomically, on the artifact host only.
+
+    Hostname decides: builds and CI elsewhere never touch the share. Returns the
+    published path, or None when this host is not the artifact host.
+    """
+    if platform.node() != ARTIFACT_HOST:
+        return None
+    share = Path(os.getenv('DAYROWS_ARTIFACT_SHARE', str(ARTIFACT_SHARE)))
+    share.mkdir(parents=True, exist_ok=True)
+    target = share / name
+    fd, temporary = tempfile.mkstemp(prefix=f'.{name}.', suffix='.new', dir=share)
+    try:
+        with os.fdopen(fd, 'wb') as dst, apk.open('rb') as src:
+            shutil.copyfileobj(src, dst)
+            dst.flush()
+            os.fsync(dst.fileno())
+        os.chmod(temporary, 0o644)
+        os.replace(temporary, target)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
+    if sha256(target) != sha256(apk):
+        target.unlink(missing_ok=True)
+        raise ValueError('Published APK copy does not match the verified package')
+    return target
 
 
 @contextmanager
@@ -221,6 +254,14 @@ def build(arguments):
             print(f'Build failed; retained state: {directory / "build-info.json"}', file=sys.stderr)
             raise
         print(f'Verified debug build: {directory}')
+        # Publication is maintenance, like retention: compilation already succeeded.
+        try:
+            published = publish_apk(directory / name, name)
+        except Exception:
+            print('Compilation succeeded; publishing to the artifact share failed.', file=sys.stderr)
+            raise
+        if published is not None:
+            print(f'Published debug APK: {published}')
         # Failure here is maintenance failure after compilation success, not a failed build.
         try:
             print(json.dumps(dict(cleanup=storage.clean(retention, apply=True)), indent=2))
