@@ -2,7 +2,9 @@
 package it.stefanogozzi.dayrows.ui
 
 import android.content.res.Configuration
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -18,7 +20,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import it.stefanogozzi.dayrows.R
@@ -41,9 +45,6 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
     val configuration = LocalConfiguration.current
     val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val locale = configuration.locales[0]
-    val format = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
-    val period = if (matrix.dates.size == 1) format.format(state.start)
-        else "${format.format(state.start)} – ${format.format(matrix.dates.last())}"
     // Tapping a calendar name opens the same local-label editor used in Settings.
     var labelTarget by remember { mutableStateOf<DeviceCalendar?>(null) }
     Scaffold(topBar = {
@@ -53,7 +54,7 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
                 else "${shortFormat.format(state.start)} – ${shortFormat.format(matrix.dates.last())}"
             LandscapeToolbar(state.preferences.dayCount, shortPeriod, onSettings, onDays, onNavigate, onToday, onRefresh, state.syncing)
         } else {
-            TopAppBar(title = { Text(stringResource(R.string.app_name)) }, actions = {
+            TopAppBar(title = { TitleBanner() }, actions = {
                 IconButton(onClick = onRefresh, enabled = !state.syncing) { Icon(Icons.Default.Refresh, stringResource(R.string.refresh_events)) }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
             })
@@ -63,19 +64,13 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
             if (!landscape) {
                 DayModeSelector(state.preferences.dayCount, onDays,
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { onNavigate(-1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.previous_period)) }
-                    Text(period, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                    TextButton(onClick = onToday) { Text(stringResource(R.string.today)) }
-                    IconButton(onClick = { onNavigate(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_period)) }
-                }
             }
             if (state.loading || state.syncing) LinearProgressIndicator(Modifier.fillMaxWidth())
             SyncMessage(state, onAccountAccess)
             if (state.error != null) ErrorMessage(state.error, onRetry)
             when {
                 matrix.rows.isNotEmpty() -> CalendarMatrix(matrix, state.zone, onEvent, onNewEvent,
-                    { labelTarget = it }, Modifier.weight(1f))
+                    { labelTarget = it }, onToday, onNavigate, Modifier.weight(1f))
                 !state.loading && state.discovered -> Column(Modifier.fillMaxSize().padding(24.dp),
                     verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(stringResource(R.string.no_selected_calendars), style = MaterialTheme.typography.bodyLarge)
@@ -91,6 +86,29 @@ fun CalendarScreen(state: CalendarUiState, onSettings: () -> Unit, onDays: (Int)
     }
 }
 
+/**
+ * The DayRows artwork in the app bar title slot, replacing the plain app name.
+ *
+ * The banner is 1013x333, so at [BANNER_HEIGHT] it is about 170 dp wide: that fits the portrait
+ * title slot beside the two action buttons and stays clear of the status bar. Height is fixed and
+ * the width follows the source aspect, so the wordmark is never stretched. When the system font
+ * scale is large the app bar grows, and the banner keeps its height rather than shrinking the
+ * touch targets around it. The image is decorative: the app name is still announced as the
+ * content description so screen-reader users hear the same label the title used to carry.
+ */
+@Composable
+private fun TitleBanner() {
+    Image(
+        painter = painterResource(R.drawable.title_banner),
+        contentDescription = stringResource(R.string.app_name),
+        modifier = Modifier.height(BANNER_HEIGHT).aspectRatio(BANNER_ASPECT),
+        contentScale = ContentScale.Fit,
+    )
+}
+
+private val BANNER_HEIGHT = 56.dp /* fits the 64 dp app bar with 4 dp above and below */
+private const val BANNER_ASPECT = 1013f / 333f /* the artwork's own aspect, never distorted */
+
 /** One safe-inset-aware row; unusually narrow windows or large fonts can scroll horizontally. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,7 +121,14 @@ private fun LandscapeToolbar(selectedDays: Int, period: String, onSettings: () -
         BoxWithConstraints(Modifier.fillMaxWidth().windowInsetsPadding(TopAppBarDefaults.windowInsets)) {
             Row(Modifier.horizontalScroll(scroll).widthIn(min = maxWidth).heightIn(min = 56.dp)
                 .padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                // Same artwork as portrait, a little smaller so the toolbar keeps room for the
+                // period controls it also has to show.
+                Image(
+                    painter = painterResource(R.drawable.title_banner),
+                    contentDescription = stringResource(R.string.app_name),
+                    modifier = Modifier.height(32.dp).aspectRatio(BANNER_ASPECT),
+                    contentScale = ContentScale.Fit,
+                )
                 Spacer(Modifier.width(12.dp))
                 DayModeSelector(selectedDays, onDays, Modifier.width(216.dp * fontScale), compact = true)
                 Spacer(Modifier.weight(1f).widthIn(min = 8.dp))

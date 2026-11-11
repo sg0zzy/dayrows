@@ -13,3 +13,8 @@ dist/
 .build-state/
 /local_artifacts/
 __pycache__/
+
+# Local moqAI design artifacts and agent MCP configuration (machine-specific)
+.moqai/
+.moqai-history/
+.omp/

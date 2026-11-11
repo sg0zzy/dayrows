@@ -11,12 +11,19 @@ GPL-3.0-or-later
 
 DayRows is a native Android calendar viewer. Each calendar occupies a row, each
 date occupies a column, and events appear as compact chronological text. Choose
-1, 2 or 7 days; move between periods or return to today. Calendar labels stay
-visible while the day columns scroll horizontally. In landscape, the title, view
-modes, date navigation, Today and Settings share one compact toolbar to leave
+1, 2 or 7 days; swipe the columns to move between periods, and tap the home
+button in the header's corner to return to today. Calendar labels stay
+visible while the day columns scroll horizontally — a swipe only changes the
+period once the columns have nothing left to scroll in that direction, so the
+same gesture never does both. In landscape, the title, view modes, date
+navigation, Today and Settings share one compact toolbar to leave
 more space for the matrix. At very large font sizes or in narrow landscape
 windows, the toolbar scrolls horizontally to keep its controls readable.
-Day headers use a single compact line, such as “Fri 16 Oct” or “ven 16 ott”.
+Day headers use a single compact line, such as “Fri 16 Oct” or “ven 16 ott”,
+and each date is a button that starts a new event on that day. The header shows
+the DayRows lockup from `icons/dayrows-feature-1024x500_long.png`, downscaled
+into density-specific WebP resources; the app name remains its content
+description.
 
 DayRows is a **view**. It never creates, edits or deletes calendars or events in
 the Calendar Provider itself. It reads Android’s Calendar Provider, including

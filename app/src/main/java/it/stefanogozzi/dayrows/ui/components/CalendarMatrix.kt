@@ -7,16 +7,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +44,7 @@ private val dateButtonMinHeight = 48.dp /* Material minimum interactive touch ta
 @Composable
 fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance) -> Unit,
                    onNewEvent: (LocalDate) -> Unit, onCalendarName: (DeviceCalendar) -> Unit,
+                   onToday: () -> Unit, onNavigate: (Int) -> Unit,
                    modifier: Modifier = Modifier) {
     val scroll = rememberScrollState()
     val locale = LocalConfiguration.current.locales[0]
@@ -51,10 +60,51 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
         val nameWidth = (maxWidth * .28f).coerceIn(88.dp, 140.dp)
         val dayWidth = (if (matrix.dates.size == 7) 164.dp else (maxWidth - nameWidth) / matrix.dates.size)
             .coerceAtLeast(maxOf(110.dp, minimumHeaderWidth))
-        Column {
+        // The period arrows are gone: swiping moves the period. The day columns keep their own
+        // horizontal scroll, so a swipe only changes the period when that scroll has nothing
+        // left to give in the swipe direction: forward from the right edge, back from the left
+        // edge. The observer runs in the Initial pass and never consumes, so the columns keep
+        // scrolling exactly as before and the two gestures cannot fight each other.
+        // TalkBack reaches both directions as custom accessibility actions, because a touch
+        // gesture must never be the only way to change the period.
+        val previousLabel = stringResource(R.string.previous_period)
+        val nextLabel = stringResource(R.string.next_period)
+        val periodGestures = Modifier
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction(previousLabel) { onNavigate(-1); true },
+                    CustomAccessibilityAction(nextLabel) { onNavigate(1); true },
+                )
+            }
+            .pointerInput(scroll.maxValue, onNavigate) {
+                val threshold = 48.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val startX = down.position.x
+                    // Sampled once per gesture: the columns must already be at the edge the
+                    // swipe is moving away from, otherwise the drag belongs to them.
+                    val atStart = scroll.value <= 0
+                    val atEnd = scroll.value >= scroll.maxValue
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            periodSwipeDirection(change.position.x - startX, threshold, atStart, atEnd)
+                                ?.let(onNavigate)
+                            break
+                        }
+                    }
+                }
+            }
+        Column(periodGestures) {
             Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)) {
-                Box(Modifier.width(nameWidth).heightIn(min = 36.dp).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.CenterStart) {
-                    Text(stringResource(R.string.calendar), style = headerStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // The corner cell used to read "Calendar"; it now carries the way back to today,
+                // which is the one date action the removed period row still needs to offer.
+                Box(Modifier.width(nameWidth).heightIn(min = 56.dp).padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center) {
+                    IconButton(onClick = onToday) {
+                        Icon(Icons.Default.Home, stringResource(R.string.today))
+                    }
                 }
                 Row(Modifier.horizontalScroll(scroll)) {
                     matrix.dates.forEach { date ->
@@ -122,6 +172,21 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
             }
         }
     }
+}
+
+/**
+ * Which period step a finished horizontal swipe asks for, or null when the gesture belongs to
+ * the day columns instead.
+ *
+ * [travel] is the signed distance from touch-down to release (positive = rightwards),
+ * [atStart]/[atEnd] say whether the columns were already at the left/right edge when the
+ * gesture began. A swipe away from an edge the columns were already sitting on is period
+ * travel; anything else is the columns scrolling, so it must not also change the period.
+ */
+internal fun periodSwipeDirection(travel: Float, threshold: Float, atStart: Boolean, atEnd: Boolean): Int? = when {
+    travel <= -threshold && atEnd -> 1      // swipe left: forward one period
+    travel >= threshold && atStart -> -1    // swipe right: back one period
+    else -> null
 }
 
 @Composable
