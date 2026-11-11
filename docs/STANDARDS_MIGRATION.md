@@ -1075,3 +1075,50 @@ when the tag was cut. That publication is also why the delivery receipt reports
 `artifact_source: github-release-assets`: the published assets are readable by the
 read-only workflow token, so the documented fallback to the release workflow artifact
 was not needed. Acceptance, tester distribution and any promotion remain manual.
+
+### Date button replaces the day-header plus marker (2026-11-11)
+
+Publisher Mark2AI feedback on the two-day matrix (revision
+`REV-147002c9-d0b0-4124-b546-56e9a5c80850`, one rectangle annotation drawn around
+the `mer 11 nov` header cell): make the date clickable with the same action as
+the marker, remove the `+`, and make the date look like a real button. This
+supersedes the 2026-10-24 decision that kept the date text non-clickable and put
+a 40 dp trailing `+` in each day header; the action itself, its ownership by the
+day rather than a calendar row, and its privacy-reduced payload are unchanged.
+
+`CalendarMatrix` now renders each day header as one outlined rounded button
+carrying the localized date: 48 dp minimum interactive height (the Material touch
+minimum that the removed 40 dp marker never met), a 1 dp `outlineVariant` border,
+press ripple and focus state, and `Role.Button` semantics. Today keeps the
+`primary` text color, so the accent continues to mean "today" and never "button";
+every other date keeps `onSurface`. The `+` glyph and its column-width
+reservation are gone, and the minimum column width now measures the date plus its
+own button padding instead of the marker. Empty cells and calendar rows gained no
+action; `MainActivity.openNewEvent`, `newEventDraft`, the `ACTION_INSERT`
+transport (`vnd.android.cursor.dir/event`, `beginTime`/`endTime`, no calendar
+identifier), permissions and preference storage are untouched. English and
+Italian `add_event_on_date` remain the sole accessibility text.
+
+README had kept two stale interaction sentences — "tap the + at the trailing edge
+of a day column" and, older still, "when you tap an empty cell" — and PRIVACY.md
+twice said "tap the + next to a day". All now describe tapping the day's date in
+the matrix header. The Italian PRIVACY.md has never described the new-event
+handoff (it documents only the event-view transfer), so no Italian sentence
+changed.
+
+Verification on the API 36 `Pixel_8a` emulator with the debug build and a seeded
+local calendar (the debug variant installs as `it.stefanogozzi.dayrows.debug`):
+
+| Check | Observed result |
+| --- | --- |
+| Marker removal | Accessibility dumps contain zero `+` text nodes in 1-, 2- and 7-day mode, portrait and landscape |
+| Action nodes | Exactly one accessibility node per visible day column, labelled `Add an event on Wed 11 Nov` / `Thu 12 Nov`, bounds e.g. `[323,552][571,678]` = 248×126 px, i.e. 165×**48 dp** at 420 dpi; the compressed (TalkBack) tree shows those same nodes as the accessible elements, so the label is announced, not hidden by a child |
+| Action transport | Tapping a header chip starts `act=…calendar.EVENT_INSERT dat=content://com.android.calendar/… typ=vnd.android.cursor.dir/event … (has extras)`; logcat truncates extras, so the per-column day mapping rests on the unit-tested `newEventDraft(date, zone)` plus the unchanged single-lambda call path rather than on a read-back editor field (the Play-image calendar app shows a Google Play services interstitial before its editor on this image) |
+| Appearance | Captured device screenshots (`screencap`) inspected through a vision-model read: chips with thin rounded outlines for every visible date, `Wed 11 Nov` in accent and `Thu 12 Nov` in dark text, `Calendar` still vertically centred against the header, no clipping and no ellipsis, and no `+` anywhere; node bounds were measured directly from the dumps |
+| Suites | `python3 -m unittest discover -s scripts/tests`: 108 tests OK; `./gradlew testDebugUnitTest lintDebug`: passed; `scripts/build-debug.sh`: succeeded (sequence 31, source digest recorded in its `build-info.json`) |
+
+No permission, identity, version, preference-format or provider-write change;
+the app remains read-only to the Calendar Provider. Unchanged MUST gaps:
+settings export/restore (R04), official signing/update-history inventory, and
+release coordination. Not committed, tagged, pushed or published; VERSION stays
+0.1.6 pending the publisher's decision.

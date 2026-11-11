@@ -21,7 +21,7 @@ Day headers use a single compact line, such as “Fri 16 Oct” or “ven 16 ott
 DayRows is a **view**. It never creates, edits or deletes calendars or events in
 the Calendar Provider itself. It reads Android’s Calendar Provider, including
 Google calendars and other calendars already synchronized by apps on the device.
-When you tap an empty cell, DayRows hands a pre-filled new event to an installed
+When you tap a day's date, DayRows hands a pre-filled new event to an installed
 calendar app, which performs the insertion under its own permissions; DayRows
 keeps only `READ_CALENDAR`. DayRows does not implement synchronization, sign-in,
 network requests, a backend or telemetry. Locally
@@ -49,12 +49,12 @@ Privacy, terms, and the full GPLv3 are available offline at the end of Settings.
 The permission explanation also provides the privacy policy before you grant
 calendar access. English and Italian privacy/terms are included in the same files.
 
-Tap an event to open its occurrence in an installed calendar app. Tap the + at the
-trailing edge of a day column to start a new event on that day: DayRows opens the
-calendar app with the day and a one-hour slot already filled in, and you choose the
-calendar there. The action belongs to the day and not to a calendar row, because a
-receiving app is free to keep its own calendar whatever a third party asks for and a
-marker in a row would promise a calendar DayRows cannot guarantee. Empty cells show
+Tap an event to open its occurrence in an installed calendar app. Tap a day's date in
+the table header to start a new event on that day: the date is drawn as a button, and
+DayRows opens the calendar app with the day and a one-hour slot already filled in, and
+you choose the calendar there. The action belongs to the day and not to a calendar row,
+because a receiving app is free to keep its own calendar whatever a third party asks for
+and a marker in a row would promise a calendar DayRows cannot guarantee. Empty cells show
 `—`.
 Continued
 entries use ↤ / ↦; `24:00` marks an exclusive midnight end. All-day events use

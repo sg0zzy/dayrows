@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -16,6 +17,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -27,6 +29,9 @@ import it.stefanogozzi.dayrows.data.EventInstance
 import it.stefanogozzi.dayrows.domain.*
 import java.time.*
 import java.time.format.DateTimeFormatter
+
+private val headerShape = RoundedCornerShape(8.dp)
+private val dateButtonMinHeight = 48.dp /* Material minimum interactive touch target */
 
 @Composable
 fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance) -> Unit,
@@ -41,7 +46,7 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
         matrix.dates.maxOf { date ->
             textMeasurer.measure(dateFormat.format(date), style = headerStyle, maxLines = 1).size.width
         }.toDp()
-    } + 16.dp /* cell padding */ + 40.dp /* the day's new-event marker */
+    } + 16.dp /* cell padding */ + 20.dp /* the date button's own padding */
     BoxWithConstraints(modifier) {
         val nameWidth = (maxWidth * .28f).coerceIn(88.dp, 140.dp)
         val dayWidth = (if (matrix.dates.size == 7) 164.dp else (maxWidth - nameWidth) / matrix.dates.size)
@@ -54,18 +59,22 @@ fun CalendarMatrix(matrix: CalendarMatrix, zone: ZoneId, onEvent: (EventInstance
                 Row(Modifier.horizontalScroll(scroll)) {
                     matrix.dates.forEach { date ->
                         // The new-event action belongs to the day, not to a calendar row: no receiving
-                        // app guarantees it will use the calendar DayRows would name, so the marker
-                        // promises only the day. It sits at the trailing edge of the column and the date
-                        // text stays non-clickable, so reading a label never starts an event.
+                        // app guarantees it will use the calendar DayRows would name, so the action
+                        // promises only the day. It now sits on the date itself, drawn as a button, so
+                        // the header carries the gesture it performs and no calendar cell does. Today
+                        // keeps the primary text color; the button outline and press ripple, not the
+                        // accent, carry the touch affordance.
                         val description = stringResource(R.string.add_event_on_date, dateFormat.format(date))
-                        Box(Modifier.width(dayWidth).heightIn(min = 36.dp).padding(horizontal = 8.dp, vertical = 6.dp),
+                        Box(Modifier.width(dayWidth).heightIn(min = 56.dp).padding(horizontal = 8.dp),
                             contentAlignment = Alignment.CenterStart) {
-                            Text(dateFormat.format(date), style = headerStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                color = if (date == LocalDate.now(zone)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                            Box(Modifier.align(Alignment.CenterEnd).size(40.dp).clip(CircleShape)
-                                .clickable { onNewEvent(date) }.semantics { contentDescription = description },
+                            Box(Modifier.heightIn(min = dateButtonMinHeight).border(1.dp, MaterialTheme.colorScheme.outlineVariant, headerShape)
+                                .clip(headerShape).clickable(role = Role.Button) { onNewEvent(date) }
+                                .semantics { contentDescription = description },
                                 contentAlignment = Alignment.Center) {
-                                Text("+", style = headerStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(dateFormat.format(date), Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    style = headerStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    color = if (date == LocalDate.now(zone)) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface)
                             }
                         }
                     }

@@ -37,7 +37,7 @@ itself, and has no `INTERNET` permission. AndroidX also declares an app-private
 signature permission for internal broadcast receiver safety; it grants no access
 to your calendar or network.
 
-When you tap the + next to a day in the matrix, DayRows asks an installed calendar app
+When you tap a day's date in the matrix header, DayRows asks an installed calendar app
 to create a new event. That request contains the selected day, that day's start and end
 time, and nothing else: it deliberately names no calendar, because the receiving app
 decides which of your calendars to offer and may keep its own default whatever a third
@@ -100,8 +100,8 @@ it. That user-initiated request contains the event URI/ID, instance start and en
 times, and all-day flag. The receiving calendar app handles that request under
 its own permissions and privacy policy.
 
-When you tap the + next to a day, DayRows asks an installed calendar application to
-create a new event there. That user-initiated request contains the selected day and that
+When you tap a day's date in the matrix header, DayRows asks an installed calendar
+application to create a new event there. That user-initiated request contains the selected day and that
 day's start and end time, and no calendar identifier. The receiving calendar app creates
 the event under its own permissions and privacy policy.
 
